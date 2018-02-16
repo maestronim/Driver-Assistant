@@ -47,6 +47,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private LocationRequest mLocationRequest;
     private CameraPosition mCameraPosition;
     private Location mLocation;
+    private Location mPreviousLocation;
     private Marker mMarker;
 
     @Override
@@ -131,12 +132,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mCameraPosition = new CameraPosition.Builder()
                 .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
                 .zoom(17)                   // Sets the zoom
-                .bearing(0)                 // Sets the orientation of the camera to east
+                .bearing(0)                 // Sets the orientation of the camera to north
                 .tilt(45)                   // Sets the tilt of the camera to 45 degrees
                 .build();                   // Creates a CameraPosition from the builder
         mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
 
-        new DownloadDataTask().execute(mLocation);
+        // Save the previous location
+        mPreviousLocation = mLocation;
+
+        // Execute the task to download the data
+        new DownloadRoadInfo().execute(mLocation);
+
+        new DownloadWeatherInfo().execute(mLocation);
     }
 
     @Override
@@ -152,12 +159,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onLocationChanged(Location location) {
         mLocation = location;
+        Bearing bearing = new Bearing();
+        Log.i(TAG, "Bearing: " + bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()));
         // Change the marker position
         mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
-        // Animate the camera to the current position
-        mMap.animateCamera(CameraUpdateFactory.newLatLng(new LatLng(mLocation.getLatitude(), mLocation.getLongitude())));
+        // Construct a CameraPosition focusing on the user position and animate the camera to that position.
+        mCameraPosition = new CameraPosition.Builder()
+                .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
+                .zoom(17)                   // Sets the zoom
+                .bearing((float)bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()))                 // Sets the orientation of the camera to north
+                .tilt(45)                   // Sets the tilt of the camera to 45 degrees
+                .build();                   // Creates a CameraPosition from the builder
+        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
 
-        new DownloadDataTask().execute(mLocation);
+        // Save the previous location
+        mPreviousLocation = mLocation;
+
+        // Execute the task to download the data
+        new DownloadRoadInfo().execute(mLocation);
     }
 
     @Override
@@ -220,7 +239,36 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    private class DownloadDataTask extends AsyncTask <Location, Void, RoadInfo> {
+    private class DownloadWeatherInfo extends AsyncTask <Location, Void, String> {
+        @Override
+        protected String doInBackground(Location... locations) {
+            HttpHandler httpHandler = new HttpHandler();
+            String weatherIcon = null;
+            String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + locations[0].getLatitude() + "&lon=" + locations[0].getLongitude() + "&appid=f4811ea576efe623ab627935c542d838";
+            // Make a request to url and get response
+            String jsonStr = httpHandler.makeServiceCall(url);
+
+            try {
+                JSONObject weatherInfo = new JSONObject(jsonStr);
+                JSONObject weather = weatherInfo.getJSONArray("weather").getJSONObject(0);
+                weatherIcon = weather.getString("icon");
+
+            } catch(JSONException e) {
+                Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
+            }
+
+            return weatherIcon;
+        }
+
+        @Override
+        protected void onPostExecute(String weatherIcon) {
+            super.onPostExecute(weatherIcon);
+
+            Log.i(TAG, "Weather icon: " + weatherIcon);
+        }
+    }
+
+    private class DownloadRoadInfo extends AsyncTask <Location, Void, RoadInfo> {
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
@@ -252,13 +300,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         JSONObject placeInfo = new JSONObject(jsonStr);
                         JSONArray elements = placeInfo.getJSONArray("elements");
                         JSONObject tags = elements.getJSONObject(0).getJSONObject("tags");
-                        Log.i(TAG, "Tags: " + tags.toString());
                         // Get road information
                         roadInfo.setName(tags.getString("name"));
                         roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
                         roadInfo.setHighway(tags.getString("highway"));
-
-                        Log.i(TAG, "Highway: " + tags.getString("highway"));
                     } else {
                         Toast.makeText(getApplicationContext(), "You are not on the road", Toast.LENGTH_LONG).show();
                     }
@@ -277,10 +322,67 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             TextView name = (TextView) findViewById(R.id.Name);
             TextView highway = (TextView) findViewById(R.id.Highway);
-
+            ImageView maxSpeed = (ImageView) findViewById(R.id.MaxSpeed);
             // Update UI
-            name.setText(roadInfo.getName());
-            highway.setText(roadInfo.getHighway());
+
+            if(roadInfo.getName() != null) {
+                name.setText(roadInfo.getName());
+            } else {
+                name.setText("Unknown");
+            }
+
+            if(roadInfo.getHighway() != null) {
+                highway.setText(roadInfo.getHighway());
+            } else {
+                highway.setText("Unknown");
+            }
+
+            switch(roadInfo.getMaxSpeed()) {
+                case 5:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_5);
+                    break;
+                case 10:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_10);
+                    break;
+                case 20:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_20);
+                    break;
+                case 30:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_30);
+                    break;
+                case 40:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_40);
+                    break;
+                case 50:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_50);
+                    break;
+                case 60:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_60);
+                    break;
+                case 70:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_70);
+                    break;
+                case 80:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_80);
+                    break;
+                case 90:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_90);
+                    break;
+                case 100:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_100);
+                    break;
+                case 110:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_110);
+                    break;
+                case 120:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_120);
+                    break;
+                case 130:
+                    maxSpeed.setImageResource(R.drawable.speed_limit_130);
+                    break;
+                default:
+                    Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
+            }
         }
     }
 }

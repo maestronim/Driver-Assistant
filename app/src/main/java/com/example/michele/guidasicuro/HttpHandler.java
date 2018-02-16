@@ -31,14 +31,14 @@ public class HttpHandler {
     public String makeServiceCall(String reqUrl) {
         String response = null;
         try {
-            /*URL url = new URL(reqUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");*/
-            HttpClient httpClient = new DefaultHttpClient(); // Create HTTP Client
+            URL url = new URL(reqUrl);
+            HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+            httpURLConnection.setRequestMethod("GET");
+            /*HttpClient httpClient = new DefaultHttpClient(); // Create HTTP Client
             HttpGet httpGet = new HttpGet(reqUrl); // Set the action you want to do
-            HttpResponse httpResponse = httpClient.execute(httpGet); // Execute it
+            HttpResponse httpResponse = httpClient.execute(httpGet); // Execute it*/
             // Read the response
-            InputStream in = new BufferedInputStream(httpResponse.getEntity().getContent());
+            InputStream in = new BufferedInputStream(httpURLConnection.getInputStream());
             response = convertStreamToString(in);
         } catch (MalformedURLException e) {
             Log.e(TAG, "MalformedURLException: " + e.getMessage());
