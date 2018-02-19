@@ -4,10 +4,13 @@ import android.Manifest;
 import android.app.ActionBar;
 import android.app.FragmentTransaction;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -39,9 +42,12 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.io.InputStream;
+
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener{
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
+    private static final int mInterval = 600000;
     private GoogleMap mMap;
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
@@ -49,6 +55,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Location mLocation;
     private Location mPreviousLocation;
     private Marker mMarker;
+    private Handler mHandler = new Handler();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,11 +70,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     WindowManager.LayoutParams.FLAG_FULLSCREEN);
         }
         else {
-            // The DecorView is the view that actually holds the window’s background drawable
-            /*View decorView = getWindow().getDecorView();
-            // Hide the status bar.
-            int uiOptions = View.SYSTEM_UI_FLAG_FULLSCREEN;
-            decorView.setSystemUiVisibility(uiOptions);*/
             // Hide the action bar
             android.support.v7.app.ActionBar actionBar = getSupportActionBar();
             actionBar.hide();
@@ -94,6 +96,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
+
+        // Execute the task to download the road info
+        new DownloadRoadInfo().execute(mLocation);
+
+        // Runnable scheduled to download the weather info
+        Runnable runnable = new Runnable(){
+            public void run() {
+                // Execute the task to download the weather info
+                new DownloadWeatherInfo().execute(mLocation);
+                Toast.makeText(getApplicationContext(), "Weather update", Toast.LENGTH_LONG).show();
+                mHandler.postDelayed(this, mInterval);
+            }
+        };
+        mHandler.postDelayed(runnable, 0);
     }
 
     @Override
@@ -139,11 +155,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // Save the previous location
         mPreviousLocation = mLocation;
-
-        // Execute the task to download the data
-        new DownloadRoadInfo().execute(mLocation);
-
-        new DownloadWeatherInfo().execute(mLocation);
     }
 
     @Override
@@ -264,7 +275,35 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         protected void onPostExecute(String weatherIcon) {
             super.onPostExecute(weatherIcon);
 
+            new DownloadImage().execute("http://openweathermap.org/img/w/" + weatherIcon + ".png");
             Log.i(TAG, "Weather icon: " + weatherIcon);
+        }
+    }
+
+    // DownloadImage AsyncTask
+    private class DownloadImage extends AsyncTask<String, Void, Bitmap> {
+        @Override
+        protected Bitmap doInBackground(String... URL) {
+
+            String imageURL = URL[0];
+
+            Bitmap bitmap = null;
+            try {
+                // Download Image from URL
+                InputStream input = new java.net.URL(imageURL).openStream();
+                // Decode Bitmap
+                bitmap = BitmapFactory.decodeStream(input);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return bitmap;
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap result) {
+            ImageView weather = (ImageView) findViewById(R.id.Weather);
+
+            weather.setImageBitmap(result);
         }
     }
 
@@ -381,7 +420,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     maxSpeed.setImageResource(R.drawable.speed_limit_130);
                     break;
                 default:
-                    Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
+                    //Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
             }
         }
     }
