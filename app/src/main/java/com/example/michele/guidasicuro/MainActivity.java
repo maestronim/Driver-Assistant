@@ -6,6 +6,8 @@ import android.app.FragmentTransaction;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.ColorFilter;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -43,11 +45,13 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.InputStream;
+import java.util.Calendar;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener{
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
-    private static final int mInterval = 600000;
+    private static final int mWeatherUpdateInterval = 600000;
+    private static final int mBreakReminderInterval = 7200000;
     private GoogleMap mMap;
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
@@ -81,6 +85,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             checkLocationPermission();
         }
 
+        ImageView headlights = (ImageView) findViewById(R.id.Headlights);
+        headlights.setImageResource(R.drawable.headlights_off);
+
+        Calendar rightNow = Calendar.getInstance();
+        int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
+
+        if(currentHour >= 22 || currentHour <= 6) {
+            //TODO: Prompt with custom Toast
+            Toast.makeText(this, "Se hai bevuto non metterti alla guida!", Toast.LENGTH_LONG).show();
+        }
+
         // Creating the fragment where the map is displayed
         MapFragment mMapFragment = MapFragment.newInstance();
         FragmentTransaction fragmentTransaction =
@@ -101,15 +116,32 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         new DownloadRoadInfo().execute(mLocation);
 
         // Runnable scheduled to download the weather info
-        Runnable runnable = new Runnable(){
+        Runnable weatherUpdate = new Runnable(){
             public void run() {
                 // Execute the task to download the weather info
                 new DownloadWeatherInfo().execute(mLocation);
                 Toast.makeText(getApplicationContext(), "Weather update", Toast.LENGTH_LONG).show();
-                mHandler.postDelayed(this, mInterval);
+                mHandler.postDelayed(this, mWeatherUpdateInterval);
             }
         };
-        mHandler.postDelayed(runnable, 0);
+        mHandler.post(weatherUpdate);
+
+        ImageView breakImage = (ImageView) findViewById(R.id.Break);
+        breakImage.setImageResource(R.drawable.no_break_needed);
+
+        // Runnable scheduled to remind the user to stop for a break
+        Runnable breakReminder = new Runnable(){
+            public void run() {
+                // Execute the task to download the weather info
+                new DownloadWeatherInfo().execute(mLocation);
+                Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
+                //Set the image to remind the user to stop
+                ImageView breakImage = (ImageView) findViewById(R.id.Break);
+                breakImage.setColorFilter(Color.RED);
+                mHandler.postDelayed(this, mBreakReminderInterval);
+            }
+        };
+        mHandler.postDelayed(breakReminder, mBreakReminderInterval);
     }
 
     @Override
@@ -127,8 +159,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         mLocationRequest = LocationRequest.create();
-        mLocationRequest.setInterval(5000);
-        mLocationRequest.setFastestInterval(2500);
+        mLocationRequest.setInterval(2000);
+        mLocationRequest.setFastestInterval(1000);
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
         // Check if the Location permission has been granted
@@ -170,15 +202,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onLocationChanged(Location location) {
         mLocation = location;
-        Bearing bearing = new Bearing();
-        Log.i(TAG, "Bearing: " + bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()));
+        Log.i(TAG, "Bearing: " + Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()));
         // Change the marker position
         mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
         // Construct a CameraPosition focusing on the user position and animate the camera to that position.
         mCameraPosition = new CameraPosition.Builder()
                 .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
                 .zoom(17)                   // Sets the zoom
-                .bearing((float)bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()))                 // Sets the orientation of the camera to north
+                .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()))                 // Sets the orientation of the camera to north
                 .tilt(45)                   // Sets the tilt of the camera to 45 degrees
                 .build();                   // Creates a CameraPosition from the builder
         mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
@@ -330,22 +361,56 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     String placeId = placeSearch.getString("osm_id");
                     String type = placeSearch.getString("osm_type");
 
-                    // If the place is a road
-                    if (type.equals("way")) {
-                        url = "http://overpass-api.de/api/interpreter?data=[out:json];way(" + placeId + ");out;";
-                        jsonStr = httpHandler.makeServiceCall(url);
+                    url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
+                    jsonStr = httpHandler.makeServiceCall(url);
 
-                        // Json object containing the place information
-                        JSONObject placeInfo = new JSONObject(jsonStr);
-                        JSONArray elements = placeInfo.getJSONArray("elements");
-                        JSONObject tags = elements.getJSONObject(0).getJSONObject("tags");
-                        // Get road information
-                        roadInfo.setName(tags.getString("name"));
-                        roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                        roadInfo.setHighway(tags.getString("highway"));
-                    } else {
-                        Toast.makeText(getApplicationContext(), "You are not on the road", Toast.LENGTH_LONG).show();
+                    // Json object containing the place information
+                    JSONObject placeInfo = new JSONObject(jsonStr);
+                    JSONArray elements = placeInfo.getJSONArray("elements");
+                    JSONObject tags = elements.getJSONObject(0).getJSONObject("tags");
+                    Log.i(TAG, "Tags: " + tags);
+
+                    // Get road info
+                    if(type.equals("way")) {
+                        if(tags.has("highway") || tags.has("junction")) {
+                            roadInfo.setHighway(tags.getString("highway"));
+
+                            if (tags.has("name")) {
+                                roadInfo.setName(tags.getString("name"));
+                            }
+
+                            if(tags.has("maxspeed")) {
+                                roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
+                            } else {
+                                // TODO: establish if a road is urban or interurban
+                            }
+
+                            if(tags.has("tunnel")) {
+                                roadInfo.setTunnel();
+                            }
+                        }
+                    } else if(type.equals("area")) {
+                        if((tags.has("highway") && tags.has("area"))) {
+                            if(tags.getString("area").equals("yes")) {
+                                roadInfo.setHighway(tags.getString("highway"));
+
+                                if (tags.has("name")) {
+                                    roadInfo.setName(tags.getString("name"));
+                                }
+
+                                if(tags.has("maxspeed")) {
+                                    roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
+                                } else {
+                                    // TODO: establish if a road is urban or interurban
+                                }
+
+                                if(tags.has("tunnel")) {
+                                    roadInfo.setTunnel();
+                                }
+                            }
+                        }
                     }
+                    Log.i(TAG, "Highway: " + roadInfo.getHighway());
                 }
                 catch (JSONException e) {
                     Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
@@ -366,14 +431,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             if(roadInfo.getName() != null) {
                 name.setText(roadInfo.getName());
-            } else {
-                name.setText("Unknown");
             }
 
             if(roadInfo.getHighway() != null) {
                 highway.setText(roadInfo.getHighway());
-            } else {
-                highway.setText("Unknown");
+            }
+
+            if(roadInfo.isTunnel()) {
+                // TODO: make the Headlights image blink
             }
 
             switch(roadInfo.getMaxSpeed()) {

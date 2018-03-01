@@ -10,9 +10,8 @@ import static java.lang.Math.*;
 
 public class Bearing {
     private static final String TAG = MainActivity.class.getSimpleName();
-    private static final double PI = 3.1415926;
 
-    public double getBearing(double previousLatitude, double previousLongitude, double currentLatitude, double currentLongitude) {
+    public static double getBearing(double previousLatitude, double previousLongitude, double currentLatitude, double currentLongitude) {
         double m1, m2 = 0.0;
         double bearing = 0.0;
 
@@ -38,7 +37,7 @@ public class Bearing {
         return bearing;
     }
 
-    private double getSlope(double previousLatitude, double previousLongitude, double currentLatitude, double currentLongitude) {
+    private static double getSlope(double previousLatitude, double previousLongitude, double currentLatitude, double currentLongitude) {
         double m = (currentLatitude-previousLatitude) / (currentLongitude-previousLongitude);
         Log.i(TAG, "clat: " + currentLatitude);
         Log.i(TAG, "plat: " + previousLatitude);
@@ -49,7 +48,7 @@ public class Bearing {
         return m;
     }
 
-    private double getAngle(double m1, double m2) {
+    private static double getAngle(double m1, double m2) {
         double tan = abs((m1-m2)/(1+m1*m2));
         Log.i(TAG, "tan: " + tan);
 
@@ -60,8 +59,8 @@ public class Bearing {
         return deg;
     }
 
-    private double fromRadToDeg(double r) {
-        double deg = r * 180 / PI;
+    private static double fromRadToDeg(double r) {
+        double deg = r * 180 / Math.PI;
         return deg;
     }
 }
