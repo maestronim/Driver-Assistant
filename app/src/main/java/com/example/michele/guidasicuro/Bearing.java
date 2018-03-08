@@ -37,7 +37,7 @@ public class Bearing {
         return bearing;
     }
 
-    private static double getSlope(double previousLatitude, double previousLongitude, double currentLatitude, double currentLongitude) {
+    private static double getSlope(double previousLongitude, double previousLatitude, double currentLongitude, double currentLatitude) {
         double m = (currentLatitude-previousLatitude) / (currentLongitude-previousLongitude);
         Log.i(TAG, "clat: " + currentLatitude);
         Log.i(TAG, "plat: " + previousLatitude);

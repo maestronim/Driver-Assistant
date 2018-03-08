@@ -45,6 +45,7 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.util.Calendar;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener{
@@ -346,24 +347,29 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         @Override
         protected RoadInfo doInBackground(Location... location) {
-            HttpHandler httpHandler = new HttpHandler();
-
             String url = "https://nominatim.openstreetmap.org/reverse?email=michelemaestroni9@gmail.com&format=json&lat=" + location[0].getLatitude() + "&lon=" + location[0].getLongitude();
             // Make a request to url and get response
-            String jsonStr = httpHandler.makeServiceCall(url);
+            String jsonStr = HttpHandler.makeServiceCall(url);
             // Object in which store road information
             RoadInfo roadInfo = new RoadInfo();
+            String type="", placeId="",highway="";
+            boolean maxSpeedIsDefined = false;
 
             if(jsonStr != null) {
                 try {
                     // Json object containing the place ID
                     JSONObject placeSearch = new JSONObject(jsonStr);
-                    String placeId = placeSearch.getString("osm_id");
-                    String type = placeSearch.getString("osm_type");
+                    placeId = placeSearch.getString("osm_id");
+                    type = placeSearch.getString("osm_type");
+                }
+                catch (JSONException e) {
+                    Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
+                }
 
-                    url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
-                    jsonStr = httpHandler.makeServiceCall(url);
+                url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
+                jsonStr = HttpHandler.makeServiceCall(url);
 
+                try{
                     // Json object containing the place information
                     JSONObject placeInfo = new JSONObject(jsonStr);
                     JSONArray elements = placeInfo.getJSONArray("elements");
@@ -373,7 +379,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     // Get road info
                     if(type.equals("way")) {
                         if(tags.has("highway") || tags.has("junction")) {
-                            roadInfo.setHighway(tags.getString("highway"));
+                            highway = tags.getString("highway");
+                            roadInfo.setHighway(highway);
+                            if(highway.equals("motorway")) {
+                                roadInfo.setMaxSpeed(130);
+                                maxSpeedIsDefined = true;
+
+                            } else if(roadInfo.getHighway().equals("residential")) {
+                                roadInfo.setMaxSpeed(50);
+                                maxSpeedIsDefined = true;
+                            }
 
                             if (tags.has("name")) {
                                 roadInfo.setName(tags.getString("name"));
@@ -381,8 +396,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                             if(tags.has("maxspeed")) {
                                 roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                            } else {
-                                // TODO: establish if a road is urban or interurban
+                                maxSpeedIsDefined = true;
                             }
 
                             if(tags.has("tunnel")) {
@@ -390,30 +404,98 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             }
                         }
                     } else if(type.equals("area")) {
-                        if((tags.has("highway") && tags.has("area"))) {
-                            if(tags.getString("area").equals("yes")) {
-                                roadInfo.setHighway(tags.getString("highway"));
+                        if ((tags.has("highway") && tags.has("area"))) {
+                            if (tags.getString("area").equals("yes")) {
+                                highway = tags.getString("highway");
+                                roadInfo.setHighway(highway);
+                                if (highway.equals("motorway")) {
+                                    roadInfo.setMaxSpeed(130);
+                                    maxSpeedIsDefined = true;
+
+                                } else if (roadInfo.getHighway().equals("residential")) {
+                                    roadInfo.setMaxSpeed(50);
+                                    maxSpeedIsDefined = true;
+                                }
 
                                 if (tags.has("name")) {
                                     roadInfo.setName(tags.getString("name"));
                                 }
 
-                                if(tags.has("maxspeed")) {
+                                if (tags.has("maxspeed")) {
                                     roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                                } else {
-                                    // TODO: establish if a road is urban or interurban
+                                    maxSpeedIsDefined = true;
                                 }
 
-                                if(tags.has("tunnel")) {
+                                if (tags.has("tunnel")) {
                                     roadInfo.setTunnel();
                                 }
                             }
                         }
                     }
-                    Log.i(TAG, "Highway: " + roadInfo.getHighway());
                 }
                 catch (JSONException e) {
                     Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
+                }
+
+                if(!maxSpeedIsDefined) {
+                    BoundingBox boundingBox = new BoundingBox();
+                    // TODO: Distance needs to be defined
+                    boundingBox.calculate(mLocation, 100);
+
+                    url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];node[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
+                    jsonStr =  HttpHandler.makeServiceCall(url);
+
+                    try {
+                        if(jsonStr != null) {
+                            // Json object containing the nearby residential roads
+                            JSONObject nearbyRoads = new JSONObject(jsonStr);
+
+                            // The road is urban if there are residential roads within the distance
+                            if(nearbyRoads.getJSONArray("elements").length() > 0) {
+                                Log.i(TAG, "The road is urban");
+                                Log.i(TAG, "Highway: " + highway);
+                                switch (highway) {
+                                    case "trunk":
+                                        roadInfo.setMaxSpeed(70);
+                                        break;
+                                    case "primary":
+                                        roadInfo.setMaxSpeed(50);
+                                        break;
+                                    case "secondary":
+                                        roadInfo.setMaxSpeed(50);
+                                        break;
+                                    case "tertiary":
+                                        roadInfo.setMaxSpeed(50);
+                                        break;
+                                    case "unclassified":
+                                        roadInfo.setMaxSpeed(50);
+                                        break;
+                                }
+                            } else {
+                                Log.i(TAG, "The road is interurban");
+                                Log.i(TAG, "Highway: " + highway);
+                                switch (highway) {
+                                    case "trunk":
+                                        roadInfo.setMaxSpeed(110);
+                                        break;
+                                    case "primary":
+                                        roadInfo.setMaxSpeed(90);
+                                        break;
+                                    case "secondary":
+                                        roadInfo.setMaxSpeed(90);
+                                        break;
+                                    case "tertiary":
+                                        roadInfo.setMaxSpeed(90);
+                                        break;
+                                    case "unclassified":
+                                        roadInfo.setMaxSpeed(70);
+                                        break;
+                                }
+                            }
+                        }
+                    } catch (JSONException e) {
+                        Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
+                    }
                 }
             }
 
@@ -428,7 +510,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             TextView highway = (TextView) findViewById(R.id.Highway);
             ImageView maxSpeed = (ImageView) findViewById(R.id.MaxSpeed);
             // Update UI
-
             if(roadInfo.getName() != null) {
                 name.setText(roadInfo.getName());
             }

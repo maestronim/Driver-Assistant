@@ -1,5 +1,11 @@
 package com.example.michele.guidasicuro;
 
+import android.widget.Toast;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+import android.support.v4.content.ContextCompat;
+
 /**
  * Created by Michele on 28/01/2018.
  */

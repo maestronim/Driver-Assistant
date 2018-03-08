@@ -25,10 +25,7 @@ public class HttpHandler {
 
     private static final String TAG = HttpHandler.class.getSimpleName();
 
-    public HttpHandler() {
-    }
-
-    public String makeServiceCall(String reqUrl) {
+    public static String makeServiceCall(String reqUrl) {
         String response = null;
         try {
             URL url = new URL(reqUrl);
@@ -52,7 +49,7 @@ public class HttpHandler {
         return response;
     }
 
-    private String convertStreamToString(InputStream is) {
+    private static String convertStreamToString(InputStream is) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         StringBuilder sb = new StringBuilder();
 
