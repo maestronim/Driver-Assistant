@@ -361,58 +361,30 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     JSONObject placeSearch = new JSONObject(jsonStr);
                     placeId = placeSearch.getString("osm_id");
                     type = placeSearch.getString("osm_type");
-                }
-                catch (JSONException e) {
+                } catch (JSONException e) {
                     Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                 }
-
+                
                 url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
                 jsonStr = HttpHandler.makeServiceCall(url);
-
-                try{
-                    // Json object containing the place information
-                    JSONObject placeInfo = new JSONObject(jsonStr);
-                    JSONArray elements = placeInfo.getJSONArray("elements");
-                    JSONObject tags = elements.getJSONObject(0).getJSONObject("tags");
-                    Log.i(TAG, "Tags: " + tags);
-
+                
+                if(jsonStr != null) {
                     // Get road info
                     if(type.equals("way")) {
-                        if(tags.has("highway") || tags.has("junction")) {
-                            highway = tags.getString("highway");
-                            roadInfo.setHighway(highway);
-                            if(highway.equals("motorway")) {
-                                roadInfo.setMaxSpeed(130);
-                                maxSpeedIsDefined = true;
-
-                            } else if(roadInfo.getHighway().equals("residential")) {
-                                roadInfo.setMaxSpeed(50);
-                                maxSpeedIsDefined = true;
-                            }
-
-                            if (tags.has("name")) {
-                                roadInfo.setName(tags.getString("name"));
-                            }
-
-                            if(tags.has("maxspeed")) {
-                                roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                                maxSpeedIsDefined = true;
-                            }
-
-                            if(tags.has("tunnel")) {
-                                roadInfo.setTunnel();
-                            }
-                        }
-                    } else if(type.equals("area")) {
-                        if ((tags.has("highway") && tags.has("area"))) {
-                            if (tags.getString("area").equals("yes")) {
+                        try {
+                            // Json object containing the place information
+                            JSONObject placeInfo = new JSONObject(jsonStr);
+                            JSONArray elements = placeInfo.getJSONArray("elements");
+                            JSONObject tags = elements.getJSONObject(0).getJSONObject("tags");
+                            Log.i(TAG, "Tags: " + tags);
+                            if(tags.has("highway") || tags.has("junction")) {
                                 highway = tags.getString("highway");
                                 roadInfo.setHighway(highway);
-                                if (highway.equals("motorway")) {
+                                if(highway.equals("motorway")) {
                                     roadInfo.setMaxSpeed(130);
                                     maxSpeedIsDefined = true;
 
-                                } else if (roadInfo.getHighway().equals("residential")) {
+                                } else if(roadInfo.getHighway().equals("residential")) {
                                     roadInfo.setMaxSpeed(50);
                                     maxSpeedIsDefined = true;
                                 }
@@ -421,80 +393,111 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                                     roadInfo.setName(tags.getString("name"));
                                 }
 
-                                if (tags.has("maxspeed")) {
+                                if(tags.has("maxspeed")) {
                                     roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
                                     maxSpeedIsDefined = true;
                                 }
 
-                                if (tags.has("tunnel")) {
+                                if(tags.has("tunnel")) {
                                     roadInfo.setTunnel();
                                 }
                             }
+                        } catch (JSONException e) {
+                            Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                         }
-                    }
-                }
-                catch (JSONException e) {
-                    Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
-                }
+                    } else if(type.equals("area")) {
+                        try {
+                            if ((tags.has("highway") && tags.has("area"))) {
+                                if (tags.getString("area").equals("yes")) {
+                                    highway = tags.getString("highway");
+                                    roadInfo.setHighway(highway);
+                                    if (highway.equals("motorway")) {
+                                        roadInfo.setMaxSpeed(130);
+                                        maxSpeedIsDefined = true;
 
-                if(!maxSpeedIsDefined) {
-                    BoundingBox boundingBox = new BoundingBox();
-                    // TODO: Distance needs to be defined
-                    boundingBox.calculate(mLocation, 100);
+                                    } else if (roadInfo.getHighway().equals("residential")) {
+                                        roadInfo.setMaxSpeed(50);
+                                        maxSpeedIsDefined = true;
+                                    }
 
-                    url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];node[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
-                    jsonStr =  HttpHandler.makeServiceCall(url);
+                                    if (tags.has("name")) {
+                                        roadInfo.setName(tags.getString("name"));
+                                    }
 
-                    try {
-                        if(jsonStr != null) {
-                            // Json object containing the nearby residential roads
-                            JSONObject nearbyRoads = new JSONObject(jsonStr);
+                                    if (tags.has("maxspeed")) {
+                                        roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
+                                        maxSpeedIsDefined = true;
+                                    }
 
-                            // The road is urban if there are residential roads within the distance
-                            if(nearbyRoads.getJSONArray("elements").length() > 0) {
-                                Log.i(TAG, "The road is urban");
-                                Log.i(TAG, "Highway: " + highway);
-                                switch (highway) {
-                                    case "trunk":
-                                        roadInfo.setMaxSpeed(70);
-                                        break;
-                                    case "primary":
-                                        roadInfo.setMaxSpeed(50);
-                                        break;
-                                    case "secondary":
-                                        roadInfo.setMaxSpeed(50);
-                                        break;
-                                    case "tertiary":
-                                        roadInfo.setMaxSpeed(50);
-                                        break;
-                                    case "unclassified":
-                                        roadInfo.setMaxSpeed(50);
-                                        break;
-                                }
-                            } else {
-                                Log.i(TAG, "The road is interurban");
-                                Log.i(TAG, "Highway: " + highway);
-                                switch (highway) {
-                                    case "trunk":
-                                        roadInfo.setMaxSpeed(110);
-                                        break;
-                                    case "primary":
-                                        roadInfo.setMaxSpeed(90);
-                                        break;
-                                    case "secondary":
-                                        roadInfo.setMaxSpeed(90);
-                                        break;
-                                    case "tertiary":
-                                        roadInfo.setMaxSpeed(90);
-                                        break;
-                                    case "unclassified":
-                                        roadInfo.setMaxSpeed(70);
-                                        break;
+                                    if (tags.has("tunnel")) {
+                                        roadInfo.setTunnel();
+                                    }
                                 }
                             }
+                        } catch (JSONException e) {
+                            Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                         }
-                    } catch (JSONException e) {
-                        Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
+                    }
+
+                    if(!maxSpeedIsDefined) {
+                        BoundingBox boundingBox = new BoundingBox();
+                        // TODO: Distance needs to be defined
+                        boundingBox.calculate(mLocation, 100);
+
+                        url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];node[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
+                        jsonStr =  HttpHandler.makeServiceCall(url);
+
+                        try {
+                            if(jsonStr != null) {
+                                // Json object containing the nearby residential roads
+                                JSONObject nearbyRoads = new JSONObject(jsonStr);
+
+                                // The road is urban if there are residential roads within the distance
+                                if(nearbyRoads.getJSONArray("elements").length() > 0) {
+                                    Log.i(TAG, "The road is urban");
+                                    Log.i(TAG, "Highway: " + highway);
+                                    switch (highway) {
+                                        case "trunk":
+                                            roadInfo.setMaxSpeed(70);
+                                            break;
+                                        case "primary":
+                                            roadInfo.setMaxSpeed(50);
+                                            break;
+                                        case "secondary":
+                                            roadInfo.setMaxSpeed(50);
+                                            break;
+                                        case "tertiary":
+                                            roadInfo.setMaxSpeed(50);
+                                            break;
+                                        case "unclassified":
+                                            roadInfo.setMaxSpeed(50);
+                                            break;
+                                    }
+                                } else {
+                                    Log.i(TAG, "The road is interurban");
+                                    Log.i(TAG, "Highway: " + highway);
+                                    switch (highway) {
+                                        case "trunk":
+                                            roadInfo.setMaxSpeed(110);
+                                            break;
+                                        case "primary":
+                                            roadInfo.setMaxSpeed(90);
+                                            break;
+                                        case "secondary":
+                                            roadInfo.setMaxSpeed(90);
+                                            break;
+                                        case "tertiary":
+                                            roadInfo.setMaxSpeed(90);
+                                            break;
+                                        case "unclassified":
+                                            roadInfo.setMaxSpeed(70);
+                                            break;
+                                    }
+                                }
+                            }
+                        } catch (JSONException e) {
+                            Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
+                        }
                     }
                 }
             }
