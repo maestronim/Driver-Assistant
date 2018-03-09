@@ -38,13 +38,13 @@ public class HttpHandler {
             InputStream in = new BufferedInputStream(httpURLConnection.getInputStream());
             response = convertStreamToString(in);
         } catch (MalformedURLException e) {
-            Log.e(TAG, "MalformedURLException: " + e.getMessage());
+            Log.i(TAG, "MalformedURLException: " + e.getMessage());
         } catch (ProtocolException e) {
-            Log.e(TAG, "ProtocolException: " + e.getMessage());
+            Log.i(TAG, "ProtocolException: " + e.getMessage());
         } catch (IOException e) {
-            Log.e(TAG, "IOException: " + e.getMessage());
+            Log.i(TAG, "IOException: " + e.getMessage());
         } catch (Exception e) {
-            Log.e(TAG, "Exception: " + e.getMessage());
+            Log.i(TAG, "Exception: " + e.getMessage());
         }
         return response;
     }
@@ -59,12 +59,12 @@ public class HttpHandler {
                 sb.append(line).append('\n');
             }
         } catch (IOException e) {
-            Log.e(TAG, "IOException: " + e.getMessage());
+            Log.i(TAG, "IOException: " + e.getMessage());
         } finally {
             try {
                 is.close();
             } catch (IOException e) {
-                Log.e(TAG, "IOException: " + e.getMessage());
+                Log.i(TAG, "IOException: " + e.getMessage());
             }
         }
 

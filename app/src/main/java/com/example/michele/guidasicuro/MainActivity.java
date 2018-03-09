@@ -61,6 +61,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Location mPreviousLocation;
     private Marker mMarker;
     private Handler mHandler = new Handler();
+    private Runnable mBreakReminder;
+    private Runnable mWeatherUpdate;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,11 +115,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .addOnConnectionFailedListener(this)
                 .build();
 
-        // Execute the task to download the road info
-        new DownloadRoadInfo().execute(mLocation);
+        ImageView breakImage = (ImageView) findViewById(R.id.Break);
+        breakImage.setImageResource(R.drawable.no_break_needed);
 
         // Runnable scheduled to download the weather info
-        Runnable weatherUpdate = new Runnable(){
+        mWeatherUpdate = new Runnable(){
             public void run() {
                 // Execute the task to download the weather info
                 new DownloadWeatherInfo().execute(mLocation);
@@ -125,13 +127,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mHandler.postDelayed(this, mWeatherUpdateInterval);
             }
         };
-        mHandler.post(weatherUpdate);
+        mHandler.post(mWeatherUpdate);
 
-        ImageView breakImage = (ImageView) findViewById(R.id.Break);
-        breakImage.setImageResource(R.drawable.no_break_needed);
+        // Execute the task to download the road info
+        new DownloadRoadInfo().execute(mLocation);
 
         // Runnable scheduled to remind the user to stop for a break
-        Runnable breakReminder = new Runnable(){
+        mBreakReminder = new Runnable(){
             public void run() {
                 // Execute the task to download the weather info
                 new DownloadWeatherInfo().execute(mLocation);
@@ -142,7 +144,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mHandler.postDelayed(this, mBreakReminderInterval);
             }
         };
-        mHandler.postDelayed(breakReminder, mBreakReminderInterval);
+        mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
     }
 
     @Override
@@ -154,6 +156,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onStop() {
         // Closes the connection to Google Play services.
         mGoogleApiClient.disconnect();
+        mHandler.removeCallbacks(mBreakReminder);
+        mHandler.removeCallbacks(mWeatherUpdate);
         super.onStop();
     }
 
@@ -297,6 +301,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 weatherIcon = weather.getString("icon");
 
             } catch(JSONException e) {
+                Log.i(TAG, "Couldn't get json from server");
                 Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
             }
 
@@ -353,7 +358,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             // Object in which store road information
             RoadInfo roadInfo = new RoadInfo();
             String type="", placeId="",highway="";
-            boolean maxSpeedIsDefined = false;
+            boolean maxSpeedIsDefined = false, isARoad = false;
 
             if(jsonStr != null) {
                 try {
@@ -362,6 +367,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     placeId = placeSearch.getString("osm_id");
                     type = placeSearch.getString("osm_type");
                 } catch (JSONException e) {
+                    Log.i(TAG, "Couldn't get json from server");
                     Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                 }
                 
@@ -369,74 +375,54 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 jsonStr = HttpHandler.makeServiceCall(url);
                 
                 if(jsonStr != null) {
-                    // Get road info
-                    if(type.equals("way")) {
-                        try {
-                            // Json object containing the place information
-                            JSONObject placeInfo = new JSONObject(jsonStr);
-                            JSONArray elements = placeInfo.getJSONArray("elements");
-                            JSONObject tags = elements.getJSONObject(0).getJSONObject("tags");
-                            Log.i(TAG, "Tags: " + tags);
-                            if(tags.has("highway") || tags.has("junction")) {
-                                highway = tags.getString("highway");
-                                roadInfo.setHighway(highway);
-                                if(highway.equals("motorway")) {
-                                    roadInfo.setMaxSpeed(130);
-                                    maxSpeedIsDefined = true;
-
-                                } else if(roadInfo.getHighway().equals("residential")) {
-                                    roadInfo.setMaxSpeed(50);
-                                    maxSpeedIsDefined = true;
-                                }
-
-                                if (tags.has("name")) {
-                                    roadInfo.setName(tags.getString("name"));
-                                }
-
-                                if(tags.has("maxspeed")) {
-                                    roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                                    maxSpeedIsDefined = true;
-                                }
-
-                                if(tags.has("tunnel")) {
-                                    roadInfo.setTunnel();
-                                }
+                    JSONObject tags = null;
+                    try {
+                        // Json object containing the place information
+                        JSONObject placeInfo = new JSONObject(jsonStr);
+                        JSONArray elements = placeInfo.getJSONArray("elements");
+                        tags = elements.getJSONObject(0).getJSONObject("tags");
+                        Log.i(TAG, "Tags: " + tags);
+                        // Get road info
+                        if (type.equals("way")) {
+                            if (tags.has("highway") || tags.has("junction")) {
+                                isARoad = true;
                             }
-                        } catch (JSONException e) {
-                            Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
-                        }
-                    } else if(type.equals("area")) {
-                        try {
+                        } else if (type.equals("area")) {
                             if ((tags.has("highway") && tags.has("area"))) {
                                 if (tags.getString("area").equals("yes")) {
-                                    highway = tags.getString("highway");
-                                    roadInfo.setHighway(highway);
-                                    if (highway.equals("motorway")) {
-                                        roadInfo.setMaxSpeed(130);
-                                        maxSpeedIsDefined = true;
-
-                                    } else if (roadInfo.getHighway().equals("residential")) {
-                                        roadInfo.setMaxSpeed(50);
-                                        maxSpeedIsDefined = true;
-                                    }
-
-                                    if (tags.has("name")) {
-                                        roadInfo.setName(tags.getString("name"));
-                                    }
-
-                                    if (tags.has("maxspeed")) {
-                                        roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                                        maxSpeedIsDefined = true;
-                                    }
-
-                                    if (tags.has("tunnel")) {
-                                        roadInfo.setTunnel();
-                                    }
+                                    isARoad = true;
                                 }
                             }
-                        } catch (JSONException e) {
-                            Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                         }
+
+                        if (isARoad) {
+                            highway = tags.getString("highway");
+                            roadInfo.setHighway(highway);
+                            if (highway.equals("motorway")) {
+                                roadInfo.setMaxSpeed(130);
+                                maxSpeedIsDefined = true;
+
+                            } else if (roadInfo.getHighway().equals("residential")) {
+                                roadInfo.setMaxSpeed(50);
+                                maxSpeedIsDefined = true;
+                            }
+
+                            if (tags.has("name")) {
+                                roadInfo.setName(tags.getString("name"));
+                            }
+
+                            if (tags.has("maxspeed")) {
+                                roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
+                                maxSpeedIsDefined = true;
+                            }
+
+                            if (tags.has("tunnel")) {
+                                roadInfo.setTunnel();
+                            }
+                        }
+                    } catch (JSONException e) {
+                        Log.i(TAG, "Couldn't get json from server");
+                        Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                     }
 
                     if(!maxSpeedIsDefined) {
@@ -496,6 +482,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                                 }
                             }
                         } catch (JSONException e) {
+                            Log.i(TAG, "Couldn't get json from server");
                             Toast.makeText(getApplicationContext(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                         }
                     }
