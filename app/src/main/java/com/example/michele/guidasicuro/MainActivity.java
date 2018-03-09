@@ -347,7 +347,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         @Override
         protected RoadInfo doInBackground(Location... location) {
-            String url = "https://nominatim.openstreetmap.org/reverse?email=michelemaestroni9@gmail.com&format=json&lat=" + location[0].getLatitude() + "&lon=" + location[0].getLongitude();
+            String url = "https://nominatim.openstreetmap.org/reverse?email=michelemaestroni9@gmail.com&format=json&lat=" + location[0].getLatitude() + "&lon=" + location[0].getLongitude() + "&zoom=16";
             // Make a request to url and get response
             String jsonStr = HttpHandler.makeServiceCall(url);
             // Object in which store road information
