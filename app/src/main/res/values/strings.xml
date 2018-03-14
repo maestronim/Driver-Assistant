@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Guida Sicuro</string>
+    <string name="item_1">Map</string>
+    <string name="item_2">Weather</string>
+    <string name="item_3">Car Status</string>
 </resources>
