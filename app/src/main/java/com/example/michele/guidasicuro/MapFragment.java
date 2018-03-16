@@ -1,16 +1,16 @@
 package com.example.michele.guidasicuro;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.FragmentTransaction;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -19,16 +19,10 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -42,18 +36,15 @@ import org.json.JSONObject;
  * Created by Michele on 14/03/2018.
  */
 
-// TODO: get the location from a broadcast receiver and remove the LocationListener
-
-public class MapFragment extends Fragment implements OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
-    private static final String TAG = MainActivity.class.getSimpleName();
+public class MapFragment extends Fragment implements OnMapReadyCallback {
+    private static final String TAG = MapFragment.class.getSimpleName();
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
     private GoogleMap mMap;
-    private GoogleApiClient mGoogleApiClient;
-    private LocationRequest mLocationRequest;
     private CameraPosition mCameraPosition;
     private Location mLocation;
     private Location mPreviousLocation;
     private Marker mMarker;
+    private MyReceiver mMyReceiver;
 
     public static MapFragment newInstance() {
         MapFragment fragment = new MapFragment();
@@ -66,6 +57,24 @@ public class MapFragment extends Fragment implements OnMapReadyCallback, GoogleA
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+
+        // BroadcastReceiver
+        mMyReceiver = new MyReceiver();
+
+        Log.i(TAG, "onStart");
+
+        // Register BroadcastReceiver to receive the data from the service
+        LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
+                mMyReceiver, new IntentFilter("GPSLocationUpdates"));
+
+        //Start the service
+        Intent intent = new Intent(getActivity(), MyLocationService.class);
+        getActivity().startService(intent);
+    }
+
+    @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_map, container, false);
@@ -75,8 +84,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback, GoogleA
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        mLocation = new Location("provider");
-
         // Get the MapView to initialize the map system and view
         MapView mapView = (MapView) getView().findViewById(R.id.map);
         if(mapView != null) {
@@ -84,97 +91,52 @@ public class MapFragment extends Fragment implements OnMapReadyCallback, GoogleA
             mapView.onResume();
             mapView.getMapAsync(this);
         }
-
-        // The main entry point for Google Play services integration
-        mGoogleApiClient = new GoogleApiClient.Builder(getActivity())
-                .addApi(LocationServices.API)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .build();
-
-        // Execute the task to download the road info
-        new DownloadRoadInfo().execute(mLocation);
     }
 
     @Override
     public void onStop() {
-        // Closes the connection to Google Play services.
-        mGoogleApiClient.disconnect();
+        // Stop register the BroadcastReceiver
+        LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
         super.onStop();
-    }
-
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
-        mLocationRequest = LocationRequest.create();
-        mLocationRequest.setInterval(2000);
-        mLocationRequest.setFastestInterval(1000);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        // Check if the Location permission has been granted
-        if (ActivityCompat.checkSelfPermission(getActivity(),
-                Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            // Get the last known location
-            mLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-            // Check for location updates
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-        }
-
-        // Place a marker on the map
-        MarkerOptions markerOptions = new MarkerOptions().position(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
-        mMarker = mMap.addMarker(markerOptions);
-
-        // Construct a CameraPosition focusing on the user position and animate the camera to that position.
-        mCameraPosition = new CameraPosition.Builder()
-                .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
-                .zoom(17)                   // Sets the zoom
-                .bearing(0)                 // Sets the orientation of the camera to north
-                .tilt(45)                   // Sets the tilt of the camera to 45 degrees
-                .build();                   // Creates a CameraPosition from the builder
-        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
-
-        // Save the previous location
-        mPreviousLocation = mLocation;
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-        Toast.makeText(getActivity(), "Connection failed", Toast.LENGTH_LONG).show();
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-        Toast.makeText(getActivity(), "Connection suspended", Toast.LENGTH_LONG).show();
-    }
-
-    @Override
-    public void onLocationChanged(Location location) {
-        mLocation = location;
-        Log.i(TAG, "Bearing: " + Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()));
-        // Change the marker position
-        mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
-        // Construct a CameraPosition focusing on the user position and animate the camera to that position.
-        mCameraPosition = new CameraPosition.Builder()
-                .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
-                .zoom(17)                   // Sets the zoom
-                .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()))                 // Sets the orientation of the camera to north
-                .tilt(45)                   // Sets the tilt of the camera to 45 degrees
-                .build();                   // Creates a CameraPosition from the builder
-        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
-
-        // Save the previous location
-        mPreviousLocation = mLocation;
-
-        // Execute the task to download the data
-        new DownloadRoadInfo().execute(mLocation);
     }
 
     @Override
     public void onMapReady(GoogleMap map) {
         mMap = map;
-        mMap.getUiSettings().setZoomControlsEnabled(false);
 
-        // Connects the client to Google Play services.
-        mGoogleApiClient.connect();
+        // Place a marker on the map
+        MarkerOptions markerOptions = new MarkerOptions().position(new LatLng(45.698264, 9.67727));
+        mMarker = mMap.addMarker(markerOptions);
+    }
+
+    public class MyReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Bundle b = intent.getBundleExtra("Location");
+            mLocation = (Location) b.getParcelable("Location");
+
+            Log.i(TAG, "Latitude: " + mLocation.getLatitude());
+            Log.i(TAG, "Longitude: " + mLocation.getLongitude());
+
+            // Change the marker position
+            mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
+
+            // Construct a CameraPosition focusing on the user position and animate the camera to that position.
+            mCameraPosition = new CameraPosition.Builder()
+                    .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
+                    .zoom(17)                   // Sets the zoom
+                    .bearing(0)                 // Sets the orientation of the camera to north
+                    .tilt(45)                   // Sets the tilt of the camera to 45 degrees
+                    .build();                   // Creates a CameraPosition from the builder
+            mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
+
+            // Save the previous location
+            mPreviousLocation = mLocation;
+
+            // Execute the task to download the data
+            new DownloadRoadInfo().execute(mLocation);
+        }
+
     }
 
     private class DownloadRoadInfo extends AsyncTask <Location, Void, RoadInfo> {

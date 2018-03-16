@@ -21,7 +21,6 @@
         <activity android:name=".MainActivity" android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -31,6 +30,18 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyBDvwj0qhbcfyAS_jjPL9sORaAJlYUjduI" />
+
+        <receiver
+            android:name="com.example.michele.guidasicuro.MapFragment$MyReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="GPSLocationUpdates"/>
+            </intent-filter>
+        </receiver>
+
+        <service android:name="com.example.michele.guidasicuro.MyLocationService" android:exported="true"
+            android:enabled="true" />
     </application>
 
 </manifest>

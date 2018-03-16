@@ -10,6 +10,8 @@ import android.view.ViewGroup;
  * Created by Michele on 14/03/2018.
  */
 
+// TODO: Get the data from OBD2 and display that in the form of charts or simple values
+
 public class CarFragment extends Fragment {
     public static CarFragment newInstance() {
         CarFragment fragment = new CarFragment();
