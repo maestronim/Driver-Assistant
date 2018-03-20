@@ -35,6 +35,7 @@ public class WeatherFragment extends Fragment{
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
 
         // Runnable scheduled to download the weather info
@@ -53,7 +54,20 @@ public class WeatherFragment extends Fragment{
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        Log.i(TAG, "onCreateView");
         return inflater.inflate(R.layout.fragment_weather, container, false);
+    }
+
+    @Override
+    public void onStop() {
+        Log.i(TAG, "onStop");
+        super.onStop();
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.i(TAG, "onDestroy");
+        super.onDestroy();
     }
 
     private class DownloadWeatherInfo extends AsyncTask<Location, Void, String> {

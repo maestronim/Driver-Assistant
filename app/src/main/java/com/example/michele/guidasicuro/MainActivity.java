@@ -1,10 +1,12 @@
 package com.example.michele.guidasicuro;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
@@ -25,9 +27,11 @@ public class MainActivity extends AppCompatActivity {
     private static final int mBreakReminderInterval = 7200000;
     private Handler mHandler = new Handler();
     private Runnable mBreakReminder;
+    private Fragment mContent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -77,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                         FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
                         transaction.replace(R.id.frame_layout, selectedFragment);
+                        transaction.addToBackStack(null);
                         transaction.commit();
                         return true;
                     }
@@ -98,13 +103,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
+        Log.i(TAG, "onSaveInstanceState");
+        super.onSaveInstanceState(outState, outPersistentState);
+    }
+
+    @Override
     protected void onStart() {
+        Log.i(TAG, "onStart");
         super.onStart();
     }
 
     @Override
     protected void onStop() {
+        Log.i(TAG, "onStop");
         mHandler.removeCallbacks(mBreakReminder);
+
+        //Start the service
+        Intent intent = new Intent(this, MyLocationService.class);
+        stopService(intent);
         super.onStop();
     }
 

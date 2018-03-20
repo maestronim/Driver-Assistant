@@ -37,8 +37,10 @@ public class MyLocationService extends Service implements GoogleApiClient.Connec
         Log.i(TAG, "onStartCommand");
         super.onStartCommand(intent, flags, startId);
 
-        // Connect the client.
-        mGoogleApiClient.connect();
+        if(!mGoogleApiClient.isConnected()) {
+            // Connect the client.
+            mGoogleApiClient.connect();
+        }
 
         return START_STICKY;
     }
@@ -58,6 +60,8 @@ public class MyLocationService extends Service implements GoogleApiClient.Connec
     @Override
     public void onDestroy() {
         Log.i(TAG, "onDestroy");
+        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+        mGoogleApiClient.disconnect();
         super.onDestroy();
     }
 
@@ -67,7 +71,7 @@ public class MyLocationService extends Service implements GoogleApiClient.Connec
 
         mLocationRequest = LocationRequest.create();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setInterval(1000); // Update location every second
+        mLocationRequest.setInterval(2000); // Update location every second
 
         // Check if the Location permission has been granted
         if (ActivityCompat.checkSelfPermission(this,

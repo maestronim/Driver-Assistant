@@ -45,6 +45,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Location mPreviousLocation;
     private Marker mMarker;
     private MyReceiver mMyReceiver;
+    private AsyncTask DownloadRoadInfoTask;
 
     public static MapFragment newInstance() {
         MapFragment fragment = new MapFragment();
@@ -53,17 +54,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
-    }
-
-    @Override
-    public void onStart() {
-        super.onStart();
 
         // BroadcastReceiver
         mMyReceiver = new MyReceiver();
-
-        Log.i(TAG, "onStart");
 
         // Register BroadcastReceiver to receive the data from the service
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
@@ -75,29 +70,58 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     @Override
+    public void onStart() {
+        Log.i(TAG, "onStart");
+        super.onStart();
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        Log.i(TAG, "onSaveInstanceState");
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_map, container, false);
+        Log.i(TAG, "onCreateView");
+
+        if(getView() != null) {
+            Log.i(TAG, "Reusing View");
+        }
+        // Inflate the layout for this fragment or reuse the existing one
+        View view = getView() != null ? getView() :
+                inflater.inflate(R.layout.fragment_map, container, false);
+
+        return view;
     }
 
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+        Log.i(TAG, "onViewCreated");
         super.onViewCreated(view, savedInstanceState);
 
-        // Get the MapView to initialize the map system and view
-        MapView mapView = (MapView) getView().findViewById(R.id.map);
-        if(mapView != null) {
-            mapView.onCreate(savedInstanceState);
-            mapView.onResume();
-            mapView.getMapAsync(this);
+        if(savedInstanceState != null) {
+            Log.i(TAG,"Recreating a previously destroyed instance");
+        } else {
+            Log.i(TAG, "Creating a new instance");
+            // Get the MapView to initialize the map system and view
+            MapView mapView = (MapView) getView().findViewById(R.id.map);
+            if (mapView != null) {
+                mapView.onCreate(savedInstanceState);
+                mapView.onResume();
+                mapView.getMapAsync(this);
+            }
         }
     }
 
     @Override
     public void onStop() {
+        Log.i(TAG, "onStop");
+        super.onStop();
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
-        super.onStop();
+        DownloadRoadInfoTask.cancel(true);
     }
 
     @Override
@@ -134,7 +158,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mPreviousLocation = mLocation;
 
             // Execute the task to download the data
-            new DownloadRoadInfo().execute(mLocation);
+            DownloadRoadInfoTask = new DownloadRoadInfo().execute(mLocation);
         }
 
     }
@@ -291,67 +315,71 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         protected void onPostExecute(RoadInfo roadInfo) {
             super.onPostExecute(roadInfo);
 
-            TextView name = (TextView) getView().findViewById(R.id.Name);
-            TextView highway = (TextView) getView().findViewById(R.id.Highway);
-            ImageView maxSpeed = (ImageView) getView().findViewById(R.id.MaxSpeed);
-            // Update UI
-            if(roadInfo.getName() != null) {
-                name.setText(roadInfo.getName());
-            }
+            try {
+                TextView name = (TextView) getView().findViewById(R.id.Name);
+                TextView highway = (TextView) getView().findViewById(R.id.Highway);
+                ImageView maxSpeed = (ImageView) getView().findViewById(R.id.MaxSpeed);
+                // Update UI
+                if (roadInfo.getName() != null) {
+                    name.setText(roadInfo.getName());
+                }
 
-            if(roadInfo.getHighway() != null) {
-                highway.setText(roadInfo.getHighway());
-            }
+                if (roadInfo.getHighway() != null) {
+                    highway.setText(roadInfo.getHighway());
+                }
 
-            if(roadInfo.isTunnel()) {
-                // TODO: make the Headlights image blink
-            }
+                if (roadInfo.isTunnel()) {
+                    // TODO: make the Headlights image blink
+                }
 
-            switch(roadInfo.getMaxSpeed()) {
-                case 5:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_5);
-                    break;
-                case 10:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_10);
-                    break;
-                case 20:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_20);
-                    break;
-                case 30:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_30);
-                    break;
-                case 40:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_40);
-                    break;
-                case 50:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_50);
-                    break;
-                case 60:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_60);
-                    break;
-                case 70:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_70);
-                    break;
-                case 80:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_80);
-                    break;
-                case 90:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_90);
-                    break;
-                case 100:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_100);
-                    break;
-                case 110:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_110);
-                    break;
-                case 120:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_120);
-                    break;
-                case 130:
-                    maxSpeed.setImageResource(R.drawable.speed_limit_130);
-                    break;
-                default:
-                    //Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
+                switch (roadInfo.getMaxSpeed()) {
+                    case 5:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_5);
+                        break;
+                    case 10:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_10);
+                        break;
+                    case 20:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_20);
+                        break;
+                    case 30:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_30);
+                        break;
+                    case 40:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_40);
+                        break;
+                    case 50:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_50);
+                        break;
+                    case 60:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_60);
+                        break;
+                    case 70:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_70);
+                        break;
+                    case 80:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_80);
+                        break;
+                    case 90:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_90);
+                        break;
+                    case 100:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_100);
+                        break;
+                    case 110:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_110);
+                        break;
+                    case 120:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_120);
+                        break;
+                    case 130:
+                        maxSpeed.setImageResource(R.drawable.speed_limit_130);
+                        break;
+                    default:
+                        //Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
+                }
+            } catch(NullPointerException e) {
+                Log.i(TAG, e.getMessage());
             }
         }
     }
