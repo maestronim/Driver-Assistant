@@ -11,13 +11,17 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.Toast;
+
 
 import java.util.Calendar;
 
@@ -27,7 +31,43 @@ public class MainActivity extends AppCompatActivity {
     private static final int mBreakReminderInterval = 7200000;
     private Handler mHandler = new Handler();
     private Runnable mBreakReminder;
-    private Fragment mContent;
+    FragmentPagerAdapter madapterViewPager;
+
+    public static class MyPagerAdapter extends FragmentPagerAdapter {
+        private static int NUM_ITEMS = 3;
+
+        public MyPagerAdapter(FragmentManager fragmentManager) {
+            super(fragmentManager);
+        }
+
+        // Returns total number of pages
+        @Override
+        public int getCount() {
+            return NUM_ITEMS;
+        }
+
+        // Returns the fragment to display for that page
+        @Override
+        public Fragment getItem(int position) {
+            switch (position) {
+                case 0: // Fragment # 0 - This will show MapFragment
+                    return MapFragment.newInstance();
+                case 1: // Fragment # 1 - This will show WeatherFragment
+                    return WeatherFragment.newInstance();
+                case 2: // Fragment # 2 - This will show CarFragment
+                    return CarFragment.newInstance();
+                default:
+                    return null;
+            }
+        }
+
+        // Returns the page title for the top indicator
+        @Override
+        public CharSequence getPageTitle(int position) {
+            return "Page " + position;
+        }
+
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,8 +100,12 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Se hai bevuto non metterti alla guida!", Toast.LENGTH_LONG).show();
         }
 
+        final ViewPager viewPager = (ViewPager) findViewById(R.id.viewpager);
+        madapterViewPager = new MyPagerAdapter(getSupportFragmentManager());
+        viewPager.setAdapter(madapterViewPager);
+
         BottomNavigationView bottomNavigationView = (BottomNavigationView)
-                findViewById(R.id.navigation);
+                findViewById(R.id.bottom_navigation);
 
         bottomNavigationView.setOnNavigationItemSelectedListener
                 (new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -70,27 +114,18 @@ public class MainActivity extends AppCompatActivity {
                         Fragment selectedFragment = null;
                         switch (item.getItemId()) {
                             case R.id.action_item1:
-                                selectedFragment = MapFragment.newInstance();
+                                viewPager.setCurrentItem(0);
                                 break;
                             case R.id.action_item2:
-                                selectedFragment = WeatherFragment.newInstance();
+                                viewPager.setCurrentItem(1);
                                 break;
                             case R.id.action_item3:
-                                selectedFragment = CarFragment.newInstance();
+                                viewPager.setCurrentItem(2);
                                 break;
                         }
-                        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-                        transaction.replace(R.id.frame_layout, selectedFragment);
-                        transaction.addToBackStack(null);
-                        transaction.commit();
                         return true;
                     }
                 });
-
-        //Manually displaying the first fragment - one time only
-        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-        transaction.replace(R.id.frame_layout, MapFragment.newInstance());
-        transaction.commit();
 
         // Runnable scheduled to remind the user to stop for a break
         mBreakReminder = new Runnable(){

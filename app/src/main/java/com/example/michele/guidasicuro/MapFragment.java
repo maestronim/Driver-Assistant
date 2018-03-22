@@ -15,10 +15,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.github.aakira.expandablelayout.ExpandableWeightLayout;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
@@ -36,6 +38,8 @@ import org.json.JSONObject;
  * Created by Michele on 14/03/2018.
  */
 
+// TODO: update "hard braking", "speed limit exceeded", "dangerous time" indicators
+
 public class MapFragment extends Fragment implements OnMapReadyCallback {
     private static final String TAG = MapFragment.class.getSimpleName();
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
@@ -45,7 +49,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Location mPreviousLocation;
     private Marker mMarker;
     private MyReceiver mMyReceiver;
-    private AsyncTask DownloadRoadInfoTask;
+    private AsyncTask mDownloadRoadInfoTask;
 
     public static MapFragment newInstance() {
         MapFragment fragment = new MapFragment();
@@ -56,13 +60,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
-
-        // BroadcastReceiver
-        mMyReceiver = new MyReceiver();
-
-        // Register BroadcastReceiver to receive the data from the service
-        LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
-                mMyReceiver, new IntentFilter("GPSLocationUpdates"));
 
         //Start the service
         Intent intent = new Intent(getActivity(), MyLocationService.class);
@@ -79,6 +76,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     public void onSaveInstanceState(Bundle outState) {
         Log.i(TAG, "onSaveInstanceState");
         super.onSaveInstanceState(outState);
+
+
     }
 
     @Override
@@ -86,12 +85,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                              Bundle savedInstanceState) {
         Log.i(TAG, "onCreateView");
 
-        if(getView() != null) {
-            Log.i(TAG, "Reusing View");
-        }
-        // Inflate the layout for this fragment or reuse the existing one
-        View view = getView() != null ? getView() :
-                inflater.inflate(R.layout.fragment_map, container, false);
+        View view = inflater.inflate(R.layout.fragment_map, container, false);
+
+        // BroadcastReceiver
+        mMyReceiver = new MyReceiver();
+
+        // Register BroadcastReceiver to receive the data from the service
+        LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
+                mMyReceiver, new IntentFilter("GPSLocationUpdates"));
 
         return view;
     }
@@ -101,17 +102,12 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         Log.i(TAG, "onViewCreated");
         super.onViewCreated(view, savedInstanceState);
 
-        if(savedInstanceState != null) {
-            Log.i(TAG,"Recreating a previously destroyed instance");
-        } else {
-            Log.i(TAG, "Creating a new instance");
-            // Get the MapView to initialize the map system and view
-            MapView mapView = (MapView) getView().findViewById(R.id.map);
-            if (mapView != null) {
-                mapView.onCreate(savedInstanceState);
-                mapView.onResume();
-                mapView.getMapAsync(this);
-            }
+        // Get the MapView to initialize the map system and view
+        MapView mapView = (MapView) getView().findViewById(R.id.map);
+        if (mapView != null) {
+            mapView.onCreate(savedInstanceState);
+            mapView.onResume();
+            mapView.getMapAsync(this);
         }
     }
 
@@ -121,7 +117,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         super.onStop();
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
-        DownloadRoadInfoTask.cancel(true);
+        mDownloadRoadInfoTask.cancel(true);
     }
 
     @Override
@@ -158,7 +154,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mPreviousLocation = mLocation;
 
             // Execute the task to download the data
-            DownloadRoadInfoTask = new DownloadRoadInfo().execute(mLocation);
+            mDownloadRoadInfoTask = new DownloadRoadInfo().execute(mLocation);
         }
 
     }
