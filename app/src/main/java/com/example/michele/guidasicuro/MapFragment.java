@@ -50,6 +50,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Marker mMarker;
     private MyReceiver mMyReceiver;
     private AsyncTask mDownloadRoadInfoTask;
+    private boolean isFirstMeasure;
 
     public static MapFragment newInstance() {
         MapFragment fragment = new MapFragment();
@@ -61,9 +62,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
 
-        //Start the service
-        Intent intent = new Intent(getActivity(), MyLocationService.class);
-        getActivity().startService(intent);
+        isFirstMeasure = true;
     }
 
     @Override
@@ -76,8 +75,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     public void onSaveInstanceState(Bundle outState) {
         Log.i(TAG, "onSaveInstanceState");
         super.onSaveInstanceState(outState);
-
-
     }
 
     @Override
@@ -135,6 +132,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             Bundle b = intent.getBundleExtra("Location");
             mLocation = (Location) b.getParcelable("Location");
 
+            if(isFirstMeasure) {
+                mPreviousLocation = mLocation;
+                isFirstMeasure = false;
+            }
+
             Log.i(TAG, "Latitude: " + mLocation.getLatitude());
             Log.i(TAG, "Longitude: " + mLocation.getLongitude());
 
@@ -145,7 +147,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mCameraPosition = new CameraPosition.Builder()
                     .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
                     .zoom(17)                   // Sets the zoom
-                    .bearing(0)                 // Sets the orientation of the camera to north
+                    .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()))        // Sets the orientation of the camera based on the user direction
                     .tilt(45)                   // Sets the tilt of the camera to 45 degrees
                     .build();                   // Creates a CameraPosition from the builder
             mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));

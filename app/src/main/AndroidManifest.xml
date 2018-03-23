@@ -40,8 +40,20 @@
             </intent-filter>
         </receiver>
 
-        <service android:name="com.example.michele.guidasicuro.MyLocationService" android:exported="true"
-            android:enabled="true" />
+        <receiver
+            android:name="com.example.michele.guidasicuro.MainActivity$MyReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="setLocationSettings"/>
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.example.michele.guidasicuro.MyLocationService"
+            android:exported="true"
+            android:enabled="true"/>
+
     </application>
 
 </manifest>

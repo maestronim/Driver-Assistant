@@ -1,7 +1,11 @@
 package com.example.michele.guidasicuro;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,6 +19,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -22,6 +27,8 @@ import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+
+import com.google.android.gms.common.api.Status;
 
 import java.util.Calendar;
 
@@ -31,7 +38,42 @@ public class MainActivity extends AppCompatActivity {
     private static final int mBreakReminderInterval = 7200000;
     private Handler mHandler = new Handler();
     private Runnable mBreakReminder;
-    FragmentPagerAdapter madapterViewPager;
+    private FragmentPagerAdapter madapterViewPager;
+    private BroadcastReceiver mMyReceiver;
+
+    public class MyReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.i(TAG, "onReceive");
+            Bundle b = intent.getBundleExtra("Status");
+            Status status = b.getParcelable("Status");
+            try {
+                // Show the dialog by calling startResolutionForResult(),
+                // and check the result in onActivityResult().
+                status.startResolutionForResult(
+                        MainActivity.this, 1000);
+            } catch (IntentSender.SendIntentException e) {
+                Log.i(TAG, "Couldn't start the intent");
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        Log.i(TAG, "onActivityResult");
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if(requestCode == 1000) {
+            if(resultCode == RESULT_OK) {
+                Log.i(TAG, "Result ok");
+                // Stop register the BroadcastReceiver
+                LocalBroadcastManager.getInstance(this).unregisterReceiver(mMyReceiver);
+                //Start the service for location updates
+                Intent intent = new Intent(this, MyLocationService.class);
+                this.startService(intent);
+            }
+        }
+    }
 
     public static class MyPagerAdapter extends FragmentPagerAdapter {
         private static int NUM_ITEMS = 3;
@@ -91,6 +133,17 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             checkLocationPermission();
         }
+
+        // BroadcastReceiver
+        mMyReceiver = new MyReceiver();
+
+        // Register BroadcastReceiver to receive the data from the service
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+                mMyReceiver, new IntentFilter("setLocationSettings"));
+
+        //Start the service to set the location settings
+        Intent intent = new Intent(this, MyLocationService.class);
+        this.startService(intent);
 
         Calendar rightNow = Calendar.getInstance();
         int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
@@ -152,12 +205,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         Log.i(TAG, "onStop");
+        super.onStop();
         mHandler.removeCallbacks(mBreakReminder);
 
-        //Start the service
+        // Stop register the BroadcastReceiver
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mMyReceiver);
+        //Stop the service
         Intent intent = new Intent(this, MyLocationService.class);
         stopService(intent);
-        super.onStop();
     }
 
     private void checkLocationPermission() {
