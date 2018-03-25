@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int mBreakReminderInterval = 7200000;
     private Handler mHandler = new Handler();
     private Runnable mBreakReminder;
-    private FragmentPagerAdapter madapterViewPager;
+    private FragmentPagerAdapter mAdapterViewPager;
     private BroadcastReceiver mMyReceiver;
 
     public class MyReceiver extends BroadcastReceiver {
@@ -91,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
         // Returns the fragment to display for that page
         @Override
         public Fragment getItem(int position) {
+            Log.i(TAG, " Current item: " + String.valueOf(position));
             switch (position) {
                 case 0: // Fragment # 0 - This will show MapFragment
                     return MapFragment.newInstance();
@@ -145,17 +146,10 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, MyLocationService.class);
         this.startService(intent);
 
-        Calendar rightNow = Calendar.getInstance();
-        int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
-
-        if(currentHour >= 22 || currentHour <= 6) {
-            //TODO: Prompt with custom Toast
-            Toast.makeText(this, "Se hai bevuto non metterti alla guida!", Toast.LENGTH_LONG).show();
-        }
-
         final ViewPager viewPager = (ViewPager) findViewById(R.id.viewpager);
-        madapterViewPager = new MyPagerAdapter(getSupportFragmentManager());
-        viewPager.setAdapter(madapterViewPager);
+        mAdapterViewPager = new MyPagerAdapter(getSupportFragmentManager());
+        viewPager.setAdapter(mAdapterViewPager);
+        viewPager.setOffscreenPageLimit(3);
 
         BottomNavigationView bottomNavigationView = (BottomNavigationView)
                 findViewById(R.id.bottom_navigation);
@@ -164,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
                 (new BottomNavigationView.OnNavigationItemSelectedListener() {
                     @Override
                     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                        Fragment selectedFragment = null;
                         switch (item.getItemId()) {
                             case R.id.action_item1:
                                 viewPager.setCurrentItem(0);

@@ -73,11 +73,10 @@ public class WeatherFragment extends Fragment{
     private class DownloadWeatherInfo extends AsyncTask<Location, Void, String> {
         @Override
         protected String doInBackground(Location... locations) {
-            HttpHandler httpHandler = new HttpHandler();
             String weatherIcon = null;
             String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + locations[0].getLatitude() + "&lon=" + locations[0].getLongitude() + "&appid=f4811ea576efe623ab627935c542d838";
             // Make a request to url and get response
-            String jsonStr = httpHandler.makeServiceCall(url);
+            String jsonStr = HttpHandler.makeServiceCall(url);
 
             try {
                 JSONObject weatherInfo = new JSONObject(jsonStr);

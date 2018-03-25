@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.location.Location;
 import android.os.AsyncTask;
@@ -34,6 +35,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Calendar;
+
 /**
  * Created by Michele on 14/03/2018.
  */
@@ -51,6 +54,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private MyReceiver mMyReceiver;
     private AsyncTask mDownloadRoadInfoTask;
     private boolean isFirstMeasure;
+    private float mSpeed;
 
     public static MapFragment newInstance() {
         MapFragment fragment = new MapFragment();
@@ -106,6 +110,16 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mapView.onResume();
             mapView.getMapAsync(this);
         }
+
+        Calendar rightNow = Calendar.getInstance();
+        int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
+
+        if(currentHour >= 22 || currentHour <= 6) {
+            TextView dangerousTime = (TextView) getView().findViewById(R.id.DangerousTime);
+            Integer precValue = Integer.valueOf(dangerousTime.getText().toString());
+            Integer actualValue = precValue += 1;
+            dangerousTime.setText(actualValue.toString());
+        }
     }
 
     @Override
@@ -139,6 +153,9 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
             Log.i(TAG, "Latitude: " + mLocation.getLatitude());
             Log.i(TAG, "Longitude: " + mLocation.getLongitude());
+            Log.i(TAG, "Speed : " + mLocation.getSpeed());
+
+            mSpeed = mLocation.getSpeed();
 
             // Change the marker position
             mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
@@ -245,9 +262,9 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                     if(!maxSpeedIsDefined) {
                         BoundingBox boundingBox = new BoundingBox();
                         // TODO: Distance needs to be defined
-                        boundingBox.calculate(mLocation, 100);
+                        boundingBox.calculate(mLocation, 500);
 
-                        url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];node[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
+                        url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];way[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
                         jsonStr =  HttpHandler.makeServiceCall(url);
 
                         try {
