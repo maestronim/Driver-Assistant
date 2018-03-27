@@ -75,43 +75,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public static class MyPagerAdapter extends FragmentPagerAdapter {
-        private static int NUM_ITEMS = 3;
-
-        public MyPagerAdapter(FragmentManager fragmentManager) {
-            super(fragmentManager);
-        }
-
-        // Returns total number of pages
-        @Override
-        public int getCount() {
-            return NUM_ITEMS;
-        }
-
-        // Returns the fragment to display for that page
-        @Override
-        public Fragment getItem(int position) {
-            Log.i(TAG, " Current item: " + String.valueOf(position));
-            switch (position) {
-                case 0: // Fragment # 0 - This will show MapFragment
-                    return MapFragment.newInstance();
-                case 1: // Fragment # 1 - This will show WeatherFragment
-                    return WeatherFragment.newInstance();
-                case 2: // Fragment # 2 - This will show CarFragment
-                    return CarFragment.newInstance();
-                default:
-                    return null;
-            }
-        }
-
-        // Returns the page title for the top indicator
-        @Override
-        public CharSequence getPageTitle(int position) {
-            return "Page " + position;
-        }
-
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate");
@@ -146,11 +109,6 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, MyLocationService.class);
         this.startService(intent);
 
-        final ViewPager viewPager = (ViewPager) findViewById(R.id.viewpager);
-        mAdapterViewPager = new MyPagerAdapter(getSupportFragmentManager());
-        viewPager.setAdapter(mAdapterViewPager);
-        viewPager.setOffscreenPageLimit(3);
-
         BottomNavigationView bottomNavigationView = (BottomNavigationView)
                 findViewById(R.id.bottom_navigation);
 
@@ -158,20 +116,30 @@ public class MainActivity extends AppCompatActivity {
                 (new BottomNavigationView.OnNavigationItemSelectedListener() {
                     @Override
                     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                        Fragment selectedFragment = null;
                         switch (item.getItemId()) {
                             case R.id.action_item1:
-                                viewPager.setCurrentItem(0);
+                                selectedFragment = MapFragment.newInstance();
                                 break;
                             case R.id.action_item2:
-                                viewPager.setCurrentItem(1);
+                                selectedFragment = WeatherFragment.newInstance();
                                 break;
                             case R.id.action_item3:
-                                viewPager.setCurrentItem(2);
+                                selectedFragment = CarFragment.newInstance();
                                 break;
                         }
+                        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+                        transaction.replace(R.id.frame_layout, selectedFragment);
+                        transaction.addToBackStack(null);
+                        transaction.commit();
                         return true;
                     }
                 });
+
+        //Manually displaying the first fragment - one time only
+        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.frame_layout, MapFragment.newInstance());
+        transaction.commit();
 
         // Runnable scheduled to remind the user to stop for a break
         mBreakReminder = new Runnable(){

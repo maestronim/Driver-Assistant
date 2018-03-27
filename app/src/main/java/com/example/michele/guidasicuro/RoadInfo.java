@@ -11,6 +11,7 @@ import android.support.v4.content.ContextCompat;
  */
 
 public class RoadInfo {
+    private String ID;
     private String Name;
     private int MaxSpeed;
     private String Highway;
@@ -20,6 +21,10 @@ public class RoadInfo {
     public RoadInfo() {
         this.isBridge = false;
         this.isTunnel = false;
+    }
+
+    public void setID(String ID) {
+        this.ID = ID;
     }
 
     public void setName(String name) {
@@ -52,6 +57,10 @@ public class RoadInfo {
 
     public String getHighway() {
         return this.Highway;
+    }
+
+    public String getID() {
+        return this.ID;
     }
 
     public boolean isBridge() {
