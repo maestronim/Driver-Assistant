@@ -31,9 +31,6 @@ public class HttpHandler {
             URL url = new URL(reqUrl);
             HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
             httpURLConnection.setRequestMethod("GET");
-            /*HttpClient httpClient = new DefaultHttpClient(); // Create HTTP Client
-            HttpGet httpGet = new HttpGet(reqUrl); // Set the action you want to do
-            HttpResponse httpResponse = httpClient.execute(httpGet); // Execute it*/
             // Read the response
             InputStream in = new BufferedInputStream(httpURLConnection.getInputStream());
             response = convertStreamToString(in);

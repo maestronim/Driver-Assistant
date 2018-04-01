@@ -30,4 +30,6 @@ dependencies {
     compile group: 'cz.msebera.android' , name: 'httpclient', version: '4.4.1.1'
     compile 'com.android.support:design:26.1.0'
     compile 'com.github.aakira:expandable-layout:1.6.0@aar'
+    compile 'com.github.pires:obd-java-api:1.0'
+    compile 'com.github.pwittchen:weathericonview:1.1.0'
 }

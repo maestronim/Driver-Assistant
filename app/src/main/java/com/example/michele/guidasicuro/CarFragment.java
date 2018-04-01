@@ -18,6 +18,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 
+import com.github.pires.obd.commands.protocol.EchoOffCommand;
+import com.github.pires.obd.commands.protocol.LineFeedOffCommand;
+import com.github.pires.obd.commands.protocol.SelectProtocolCommand;
+import com.github.pires.obd.commands.protocol.TimeoutCommand;
+import com.github.pires.obd.enums.ObdProtocols;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -199,7 +205,18 @@ public class CarFragment extends Fragment {
         }
 
         public void run() {
-            // TODO: Initialize the 0BD2 adapter
+            try {
+                // OBD2 initialization
+                new EchoOffCommand().run(mmInStream, mmOutStream);
+                new LineFeedOffCommand().run(mmInStream, mmOutStream);
+                new TimeoutCommand(125).run(mmInStream, mmOutStream);
+                new SelectProtocolCommand(ObdProtocols.AUTO).run(mmInStream, mmOutStream);
+
+                // TODO: Send commands to read values from the ELM327 device
+            } catch(Exception e) {
+                Log.i(TAG, "Error occurred when retrieving data from the ELM327 device");
+                this.cancel();
+            }
         }
 
         // Call this method from the main activity to shut down the connection.

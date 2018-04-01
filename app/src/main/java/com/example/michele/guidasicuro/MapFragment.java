@@ -55,7 +55,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private AsyncTask mDownloadRoadInfoTask;
     private boolean isFirstMeasure;
     private float mSpeed;
-    private RoadInfo roadInfo;
+    private String mPlaceId;
 
     public static MapFragment newInstance() {
         MapFragment fragment = new MapFragment();
@@ -68,7 +68,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         super.onCreate(savedInstanceState);
 
         isFirstMeasure = true;
-        roadInfo = new RoadInfo();
     }
 
     @Override
@@ -90,14 +89,20 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         View view = inflater.inflate(R.layout.fragment_map, container, false);
 
+        return view;
+    }
+
+    @Override
+    public void onResume() {
+        Log.i(TAG, "onResume");
+        super.onResume();
+
         // BroadcastReceiver
         mMyReceiver = new MyReceiver();
 
         // Register BroadcastReceiver to receive the data from the service
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
                 mMyReceiver, new IntentFilter("GPSLocationUpdates"));
-
-        return view;
     }
 
     @Override
@@ -125,12 +130,19 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     @Override
-    public void onStop() {
-        Log.i(TAG, "onStop");
-        super.onStop();
+    public void onPause() {
+        Log.i(TAG, "onPause");
+        super.onPause();
+
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
         mDownloadRoadInfoTask.cancel(true);
+    }
+
+    @Override
+    public void onStop() {
+        Log.i(TAG, "onStop");
+        super.onStop();
     }
 
     @Override
@@ -193,6 +205,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             String jsonStr = HttpHandler.makeServiceCall(url);
             String type="", placeId="",highway="";
             boolean maxSpeedIsDefined = false, isARoad = false;
+            RoadInfo roadInfo = new RoadInfo();
 
             if(jsonStr != null) {
                 try {
@@ -205,8 +218,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                     Toast.makeText(getActivity(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
                 }
 
-                if(!placeId.equals(roadInfo.getID())) {
-                    roadInfo.setID(placeId);
+                if(!placeId.equals(mPlaceId)) {
+                    mPlaceId = placeId;
 
                     url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
                     jsonStr = HttpHandler.makeServiceCall(url);
