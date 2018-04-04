@@ -32,14 +32,28 @@ import com.google.android.gms.common.api.Status;
 
 import java.util.Calendar;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements UserParameters.UserParametersListener{
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
     private static final int mBreakReminderInterval = 7200000;
     private Handler mHandler = new Handler();
     private Runnable mBreakReminder;
-    private FragmentPagerAdapter mAdapterViewPager;
     private BroadcastReceiver mMyReceiver;
+
+    @Override
+    public void onDangerousTime() {
+
+    }
+
+    @Override
+    public void onHardBraking() {
+
+    }
+
+    @Override
+    public void onSpeedLimitExceeded() {
+
+    }
 
     public class MyReceiver extends BroadcastReceiver {
         @Override

@@ -9,9 +9,9 @@ import android.graphics.Bitmap;
 public class WeatherInfo {
     private String city;
     private String icon;
-    private int temperature;
-    private int minTemperature;
-    private int maxTemperature;
+    private double temperature;
+    private double minTemperature;
+    private double maxTemperature;
     private String description;
     private int humidity;
     private Wind wind;
@@ -23,10 +23,10 @@ public class WeatherInfo {
     }
 
     public class Wind {
-        private int speed;
+        private double speed;
         private int direction;
 
-        public void setSpeed(int speed) {
+        public void setSpeed(double speed) {
             this.speed = speed;
         }
 
@@ -51,15 +51,15 @@ public class WeatherInfo {
         this.icon = icon;
     }
 
-    public void setTemperature(int temperature) {
+    public void setTemperature(double temperature) {
         this.temperature = temperature;
     }
 
-    public void setMinTemperature(int minTemperature) {
+    public void setMinTemperature(double minTemperature) {
         this.minTemperature = minTemperature;
     }
 
-    public void setMaxTemperature(int maxTemperature) {
+    public void setMaxTemperature(double maxTemperature) {
         this.maxTemperature = maxTemperature;
     }
 
@@ -71,7 +71,7 @@ public class WeatherInfo {
         this.humidity = humidity;
     }
 
-    public void setWind(int speed, int direction) {
+    public void setWind(double speed, int direction) {
         this.wind.setSpeed(speed);
         this.wind.setDirection(direction);
     }

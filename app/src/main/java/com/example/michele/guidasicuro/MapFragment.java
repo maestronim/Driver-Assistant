@@ -89,20 +89,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         View view = inflater.inflate(R.layout.fragment_map, container, false);
 
-        return view;
-    }
-
-    @Override
-    public void onResume() {
-        Log.i(TAG, "onResume");
-        super.onResume();
-
         // BroadcastReceiver
         mMyReceiver = new MyReceiver();
 
         // Register BroadcastReceiver to receive the data from the service
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
                 mMyReceiver, new IntentFilter("GPSLocationUpdates"));
+
+        return view;
     }
 
     @Override
@@ -130,19 +124,19 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     @Override
-    public void onPause() {
-        Log.i(TAG, "onPause");
-        super.onPause();
+    public void onStop() {
+        Log.i(TAG, "onStop");
+        super.onStop();
+    }
+
+    @Override
+    public void onDestroyView() {
+        Log.i(TAG, "onDestroyView");
+        super.onDestroyView();
 
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
         mDownloadRoadInfoTask.cancel(true);
-    }
-
-    @Override
-    public void onStop() {
-        Log.i(TAG, "onStop");
-        super.onStop();
     }
 
     @Override
@@ -200,9 +194,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         @Override
         protected RoadInfo doInBackground(Location... location) {
+            Log.i(TAG, "doInBackground");
+            HttpHandler httpHandler = new HttpHandler();
             String url = "https://nominatim.openstreetmap.org/reverse?email=michelemaestroni9@gmail.com&format=json&lat=" + location[0].getLatitude() + "&lon=" + location[0].getLongitude() + "&zoom=16";
             // Make a request to url and get response
-            String jsonStr = HttpHandler.makeServiceCall(url);
+            String jsonStr = httpHandler.makeServiceCall(url);
             String type="", placeId="",highway="";
             boolean maxSpeedIsDefined = false, isARoad = false;
             RoadInfo roadInfo = new RoadInfo();
@@ -222,7 +218,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                     mPlaceId = placeId;
 
                     url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
-                    jsonStr = HttpHandler.makeServiceCall(url);
+                    jsonStr = httpHandler.makeServiceCall(url);
 
                     if (jsonStr != null) {
                         JSONObject tags = null;
@@ -281,7 +277,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                             boundingBox.calculate(mLocation, 500);
 
                             url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];way[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
-                            jsonStr = HttpHandler.makeServiceCall(url);
+                            jsonStr = httpHandler.makeServiceCall(url);
 
                             try {
                                 if (jsonStr != null) {
@@ -347,6 +343,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         @Override
         protected void onPostExecute(RoadInfo roadInfo) {
+            Log.i(TAG, "onPostExecute");
             super.onPostExecute(roadInfo);
 
             try {

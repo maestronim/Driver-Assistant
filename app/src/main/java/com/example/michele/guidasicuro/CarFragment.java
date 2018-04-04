@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 
+import com.github.pires.obd.commands.SpeedCommand;
 import com.github.pires.obd.commands.protocol.EchoOffCommand;
 import com.github.pires.obd.commands.protocol.LineFeedOffCommand;
 import com.github.pires.obd.commands.protocol.SelectProtocolCommand;
@@ -46,6 +47,7 @@ public class CarFragment extends Fragment {
     private static final String TAG = CarFragment.class.getSimpleName();
     private static final int REQUEST_ENABLE_BT = 10;
     private BluetoothAdapter mBluetoothAdapter;
+    private UserParameters.UserParametersListener mUserParametersListener;
 
     // Create a BroadcastReceiver for ACTION_FOUND.
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -71,56 +73,21 @@ public class CarFragment extends Fragment {
     }
 
     @Override
+    public void onAttach(Context context) {
+        Log.i(TAG, "onAttach");
+        super.onAttach(context);
+
+        try {
+            mUserParametersListener = (UserParameters.UserParametersListener) context;
+        } catch (ClassCastException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
-
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (mBluetoothAdapter == null) {
-            Log.i(TAG, "The device doesn't support Bluetooth");
-        } else {
-            if (!mBluetoothAdapter.isEnabled()) {
-                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-            }
-
-            ArrayList<String> deviceStrs = new ArrayList<String>();
-            final ArrayList<String> devices = new ArrayList<String>();
-
-            mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-            final Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
-            if (pairedDevices.size() > 0) {
-                for (BluetoothDevice device : pairedDevices) {
-                    deviceStrs.add(device.getName() + "\n" + device.getAddress());
-                    devices.add(device.getAddress());
-                }
-
-                // show list
-                final AlertDialog.Builder alertDialog = new AlertDialog.Builder(getActivity());
-
-                ArrayAdapter<String> adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.select_dialog_singlechoice,
-                        deviceStrs.toArray(new String[deviceStrs.size()]));
-
-                alertDialog.setSingleChoiceItems(adapter, -1, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                        int position = ((AlertDialog) dialog).getListView().getCheckedItemPosition();
-                        mDeviceAddress = devices.get(position);
-                        // TODO save deviceAddress
-
-                        new ConnectThread((BluetoothDevice)pairedDevices.toArray()[position]).run();
-                    }
-                });
-
-                alertDialog.setTitle("Choose Bluetooth device");
-                alertDialog.show();
-            } else {
-                // Register for broadcasts when a device is discovered.
-                IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-                LocalBroadcastManager.getInstance(getActivity()).registerReceiver(mReceiver, filter);
-            }
-        }
     }
 
     private class ConnectThread extends Thread {
@@ -180,7 +147,8 @@ public class CarFragment extends Fragment {
         private final BluetoothSocket mmSocket;
         private final InputStream mmInStream;
         private final OutputStream mmOutStream;
-        private byte[] mmBuffer; // mmBuffer store for the stream
+        private int mmMeasuresNumber;
+        private int[] mmSpeedMeasures;
 
         public ConnectedThread(BluetoothSocket socket) {
             mmSocket = socket;
@@ -209,10 +177,25 @@ public class CarFragment extends Fragment {
                 // OBD2 initialization
                 new EchoOffCommand().run(mmInStream, mmOutStream);
                 new LineFeedOffCommand().run(mmInStream, mmOutStream);
-                new TimeoutCommand(125).run(mmInStream, mmOutStream);
+                new TimeoutCommand(200).run(mmInStream, mmOutStream);
                 new SelectProtocolCommand(ObdProtocols.AUTO).run(mmInStream, mmOutStream);
 
-                // TODO: Send commands to read values from the ELM327 device
+                SpeedCommand speedCommand = new SpeedCommand();
+                int measuresNumber = 0;
+                int[] speedMeasures = new int[3];
+                UserParameters userParameters = new UserParameters();
+
+                while(!Thread.currentThread().isInterrupted()) {
+                    speedCommand.run(mmInStream, mmOutStream);
+                    Log.i(TAG,"Speed: " + speedCommand.getFormattedResult());
+                    speedMeasures[measuresNumber] = speedCommand.getMetricSpeed();
+                    measuresNumber ++;
+
+                    if(measuresNumber >= 3) {
+                        userParameters.setSpeedMeasures(speedMeasures);
+                        measuresNumber = 0;
+                    }
+                }
             } catch(Exception e) {
                 Log.i(TAG, "Error occurred when retrieving data from the ELM327 device");
                 this.cancel();
@@ -247,7 +230,62 @@ public class CarFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         Log.i(TAG, "onCreateView");
+
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        if (mBluetoothAdapter == null) {
+            Log.i(TAG, "The device doesn't support Bluetooth");
+        } else {
+            if (!mBluetoothAdapter.isEnabled()) {
+                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            }
+
+            ArrayList<String> deviceStrs = new ArrayList<String>();
+            final ArrayList<String> devices = new ArrayList<String>();
+
+            mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            final Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+            if (pairedDevices.size() > 0) {
+                for (BluetoothDevice device : pairedDevices) {
+                    deviceStrs.add(device.getName() + "\n" + device.getAddress());
+                    devices.add(device.getAddress());
+                }
+
+                // show list
+                final AlertDialog.Builder alertDialog = new AlertDialog.Builder(getActivity());
+
+                ArrayAdapter<String> adapter = new ArrayAdapter<String>(getActivity(), android.R.layout.select_dialog_singlechoice,
+                        deviceStrs.toArray(new String[deviceStrs.size()]));
+
+                alertDialog.setSingleChoiceItems(adapter, -1, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        int position = ((AlertDialog) dialog).getListView().getCheckedItemPosition();
+                        mDeviceAddress = devices.get(position);
+                        // TODO save deviceAddress
+
+                        new ConnectThread((BluetoothDevice)pairedDevices.toArray()[position]).run();
+                    }
+                });
+
+                alertDialog.setTitle("Choose Bluetooth device");
+                alertDialog.show();
+            } else {
+                // Register for broadcasts when a device is discovered.
+                IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+                LocalBroadcastManager.getInstance(getActivity()).registerReceiver(mReceiver, filter);
+            }
+        }
+
         return inflater.inflate(R.layout.fragment_car, container, false);
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+
+        LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mReceiver);
     }
 
     @Override
@@ -260,7 +298,5 @@ public class CarFragment extends Fragment {
     public void onDestroy() {
         Log.i(TAG, "onDestroy");
         super.onDestroy();
-
-        LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mReceiver);
     }
 }

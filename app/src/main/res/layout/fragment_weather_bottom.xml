@@ -12,34 +12,31 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
         <TextView
-            android:id="@+id/Humidity_text"
+            android:id="@+id/humidity_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Humidity"
             android:textSize="20sp"
-            android:textColor="@color/white"
             android:layout_marginLeft="16dp"/>
 
         <com.github.pwittchen.weathericonview.WeatherIconView
             android:id="@+id/humidity_icon"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/Humidity_text"
-            android:layout_marginLeft="16dp"
+            android:layout_below="@id/humidity_text"
+            android:layout_marginLeft="42dp"
             android:layout_marginTop="8dp"
             custom:weatherIconResource="@string/wi_humidity"
-            custom:weatherIconSize="75"
-            custom:weatherIconColor="@color/white"/>
+            custom:weatherIconSize="75" />
 
         <TextView
             android:id="@+id/humidity_value"
             android:layout_width="wrap_content"
             android:layout_height="75dp"
             android:layout_toRightOf="@id/humidity_icon"
-            android:layout_below="@id/Humidity_text"
-            android:layout_marginLeft="8dp"
+            android:layout_below="@id/humidity_text"
+            android:layout_marginLeft="16dp"
             android:textSize="24sp"
-            android:textColor="@color/white"
             android:layout_marginTop="8dp"
             android:gravity="center"/>
     </RelativeLayout>
@@ -55,7 +52,6 @@
             android:layout_height="wrap_content"
             android:text="Wind"
             android:textSize="20sp"
-            android:textColor="@color/white"
             android:layout_marginLeft="16dp"
             android:layout_marginTop="8dp"/>
 
@@ -64,18 +60,19 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/wind_text"
-            android:layout_marginLeft="16dp"
+            android:layout_marginLeft="42dp"
             android:layout_marginTop="8dp"
             custom:weatherIconResource="@string/wi_strong_wind"
-            custom:weatherIconSize="75"
-            custom:weatherIconColor="@color/white"/>
+            custom:weatherIconSize="75" />
 
         <RelativeLayout
             android:layout_width="wrap_content"
             android:layout_height="75dp"
             android:layout_below="@id/wind_text"
             android:layout_toRightOf="@id/wind_icon"
+            android:layout_marginLeft="16dp"
             android:layout_marginTop="8dp"
+            android:layout_marginRight="42dp"
             android:gravity="center">
             <TextView
                 android:id="@+id/wind_speed_text"
@@ -83,16 +80,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="8dp"
                 android:text="Speed: "
-                android:textSize="16sp"
-                android:textColor="@color/white"/>
+                android:textSize="16sp" />
 
             <TextView
                 android:id="@+id/wind_speed_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_toRightOf="@id/wind_speed_text"
-                android:textSize="16sp"
-                android:textColor="@color/white"/>
+                android:textSize="16sp" />
 
             <TextView
                 android:id="@+id/wind_direction_text"
@@ -101,8 +96,7 @@
                 android:layout_below="@id/wind_speed_text"
                 android:layout_marginLeft="8dp"
                 android:text="Direction: "
-                android:textSize="16sp"
-                android:textColor="@color/white"/>
+                android:textSize="16sp" />
 
             <TextView
                 android:id="@+id/wind_direction_value"
@@ -110,8 +104,7 @@
                 android:layout_height="wrap_content"
                 android:layout_below="@id/wind_speed_text"
                 android:layout_toRightOf="@id/wind_direction_text"
-                android:textSize="16sp"
-                android:textColor="@color/white"/>
+                android:textSize="16sp" />
         </RelativeLayout>
     </RelativeLayout>
 </RelativeLayout>

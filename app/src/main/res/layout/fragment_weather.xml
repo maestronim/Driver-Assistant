@@ -4,6 +4,7 @@
     android:id="@+id/weather_main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     xmlns:custom="http://schemas.android.com/apk/res-auto"
     tools:context="com.example.michele.guidasicuro.WeatherFragment">
 
@@ -90,8 +91,7 @@
                     android:layout_marginLeft="16dp"
                     android:layout_marginRight="16dp"
                     android:layout_below="@id/min_temp_value"
-                    custom:weatherIconColor="@android:color/white"
-                    custom:weatherIconSize="100" />
+                    custom:weatherIconColor="@android:color/white" />
 
                 <TextView
                     android:id="@+id/weather_description"

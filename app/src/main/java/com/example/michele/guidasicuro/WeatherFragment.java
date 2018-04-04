@@ -16,7 +16,9 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.content.LocalBroadcastManager;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -35,6 +37,7 @@ import org.json.JSONObject;
 import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.net.Inet4Address;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -60,8 +63,6 @@ public class WeatherFragment extends Fragment{
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
-
-        mMyReceiver = new MyReceiver();
     }
 
     private int getMainLayoutHeight() {
@@ -78,20 +79,14 @@ public class WeatherFragment extends Fragment{
                              Bundle savedInstanceState) {
         Log.i(TAG, "onCreateView");
 
-        return inflater.inflate(R.layout.fragment_weather, container, false);
-    }
-
-    @Override
-    public void onResume() {
-        Log.i(TAG, "onResume");
-        super.onResume();
-
         // BroadcastReceiver
-        mMyReceiver = new WeatherFragment.MyReceiver();
+        mMyReceiver = new MyReceiver();
 
         // Register BroadcastReceiver to receive the data from the service
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
                 mMyReceiver, new IntentFilter("GPSLocationUpdates"));
+
+        return inflater.inflate(R.layout.fragment_weather, container, false);
     }
 
     @Override
@@ -107,6 +102,27 @@ public class WeatherFragment extends Fragment{
         params.height = getMainLayoutHeight();
         // initialize new parameters for my element
         mainLayout.setLayoutParams(new RelativeLayout.LayoutParams(params));
+
+        WeatherIconView weatherConditionIcon = (WeatherIconView) getView().findViewById(R.id.weather_condition_icon);
+        weatherConditionIcon.setHeight(getPixelsFromDp(100f));
+        weatherConditionIcon.setWidth(getPixelsFromDp(100f));
+
+        WeatherIconView humidityIcon = (WeatherIconView) getView().findViewById(R.id.humidity_icon);
+        humidityIcon.setHeight(getPixelsFromDp(80f));
+        humidityIcon.setWidth(getPixelsFromDp(80f));
+
+        WeatherIconView windIcon = (WeatherIconView) getView().findViewById(R.id.wind_icon);
+        windIcon.setHeight(getPixelsFromDp(80f));
+        windIcon.setWidth(getPixelsFromDp(80f));
+
+        // TODO: fix the icon size
+    }
+
+    int getPixelsFromDp(float dp) {
+        DisplayMetrics metrics = getContext().getResources().getDisplayMetrics();
+        float fpixels = metrics.density * dp;
+
+        return (int) (fpixels + 0.5f);
     }
 
     @Override
@@ -116,9 +132,9 @@ public class WeatherFragment extends Fragment{
     }
 
     @Override
-    public void onPause() {
-        Log.i(TAG, "onPause");
-        super.onPause();
+    public void onDestroyView() {
+        Log.i(TAG, "onDestroyView");
+        super.onDestroyView();
 
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
@@ -143,22 +159,23 @@ public class WeatherFragment extends Fragment{
     private class DownloadWeatherInfo extends AsyncTask<Location, Void, WeatherInfo> {
         @Override
         protected WeatherInfo doInBackground(Location... locations) {
+            Log.i(TAG, "doInBackground");
+            HttpHandler httpHandler = new HttpHandler();
             WeatherInfo weatherInfo = new WeatherInfo();
             String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + locations[0].getLatitude() + "&lon=" + locations[0].getLongitude() + "&units=metric&appid=f4811ea576efe623ab627935c542d838";
             // Make a request to url and get response
-            String jsonStr = HttpHandler.makeServiceCall(url);
+            String jsonStr = httpHandler.makeServiceCall(url);
 
             Log.i(TAG, jsonStr);
 
             try {
-                // TODO: remove the decimal part from the integer values
                 JSONObject weatherInfoObject = new JSONObject(jsonStr);
                 weatherInfo.setCity(weatherInfoObject.getString("name"));
                 weatherInfo.setHumidity(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("humidity")));
-                weatherInfo.setTemperature((int)Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp"))));
-                weatherInfo.setMinTemperature((int)Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp_min"))));
-                weatherInfo.setMaxTemperature((int)Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp_max"))));
-                weatherInfo.setWind((int)Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
+                weatherInfo.setTemperature(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp")));
+                weatherInfo.setMinTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_min")));
+                weatherInfo.setMaxTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_max")));
+                weatherInfo.setWind(Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
                 weatherInfo.setSunrise(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunrise")));
                 weatherInfo.setSunset(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunset")));
                 weatherInfo.setDescription(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("description"));
@@ -174,6 +191,7 @@ public class WeatherFragment extends Fragment{
 
         @Override
         protected void onPostExecute(WeatherInfo weatherInfo) {
+            Log.i(TAG, "onPostExecute");
             super.onPostExecute(weatherInfo);
 
             if(weatherInfo.getCity() != null) {
@@ -188,21 +206,21 @@ public class WeatherFragment extends Fragment{
                 weatherDescription.setText(weatherInfo.getDescription());
 
                 TextView temperature = (TextView) getView().findViewById(R.id.temp);
-                temperature.setText(String.valueOf(weatherInfo.getTemperature()) + "°");
+                temperature.setText(formatNumber(weatherInfo.getTemperature()) + "°");
 
                 Log.i(TAG, "temperature: " + String.valueOf(weatherInfo.getTemperature()));
 
                 TextView minTemperature = (TextView) getView().findViewById(R.id.min_temp_value);
-                minTemperature.setText(String.valueOf(weatherInfo.getMinTemperature()));
+                minTemperature.setText(formatNumber(weatherInfo.getMinTemperature()));
 
                 TextView maxTemperature = (TextView) getView().findViewById(R.id.max_temp_value);
-                maxTemperature.setText(String.valueOf(weatherInfo.getMaxTemperature()));
+                maxTemperature.setText(formatNumber(weatherInfo.getMaxTemperature()));
 
                 TextView humidity = (TextView) getView().findViewById(R.id.humidity_value);
                 humidity.setText(String.valueOf(weatherInfo.getHumidity()) + "%");
 
                 TextView windSpeed = (TextView) getView().findViewById(R.id.wind_speed_value);
-                windSpeed.setText(String.valueOf(weatherInfo.getWindSpeed()));
+                windSpeed.setText(formatNumber(weatherInfo.getWindSpeed()));
 
                 TextView windDirection = (TextView) getView().findViewById(R.id.wind_direction_value);
                 windDirection.setText(String.valueOf(weatherInfo.getWindDirection()));
@@ -212,14 +230,22 @@ public class WeatherFragment extends Fragment{
                 WeatherIconView weatherIcon = (WeatherIconView) getView().findViewById(R.id.weather_condition_icon);
                 weatherIcon.setIconResource(getString(icon_and_background.get("icon")));
 
-                LinearLayout weatherMainLayout = (LinearLayout) getView().findViewById(R.id.weather_main_layout);
-                weatherMainLayout.setBackgroundResource(icon_and_background.get("background"));
+                Log.i(TAG, getString(icon_and_background.get("background")));
+
+                RelativeLayout weatherTopLayout = (RelativeLayout) getView().findViewById(R.id.weather_top_layout);
+                weatherTopLayout.setBackgroundResource(icon_and_background.get("background"));
             } catch(NullPointerException e) {
                 e.printStackTrace();
             } catch(Exception e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    private String formatNumber(double number) {
+        DecimalFormat df = new DecimalFormat("#");
+
+        return df.format(number);
     }
 
     private HashMap<String, Integer> getIconAndBackground(String icon) {

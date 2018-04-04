@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 
 import android.util.Log;
@@ -25,28 +26,33 @@ public class HttpHandler {
 
     private static final String TAG = HttpHandler.class.getSimpleName();
 
-    public static String makeServiceCall(String reqUrl) {
+    public String makeServiceCall(String reqUrl) {
         String response = null;
         try {
             URL url = new URL(reqUrl);
             HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
             httpURLConnection.setRequestMethod("GET");
+            httpURLConnection.setConnectTimeout(15000);
+            httpURLConnection.setReadTimeout(15000);
             // Read the response
             InputStream in = new BufferedInputStream(httpURLConnection.getInputStream());
             response = convertStreamToString(in);
         } catch (MalformedURLException e) {
-            Log.i(TAG, "MalformedURLException: " + e.getMessage());
+            e.printStackTrace();
+
+        } catch (SocketTimeoutException e) {
+            e.printStackTrace();
         } catch (ProtocolException e) {
-            Log.i(TAG, "ProtocolException: " + e.getMessage());
+            e.printStackTrace();
         } catch (IOException e) {
-            Log.i(TAG, "IOException: " + e.getMessage());
+            e.printStackTrace();
         } catch (Exception e) {
-            Log.i(TAG, "Exception: " + e.getMessage());
+            e.printStackTrace();
         }
         return response;
     }
 
-    private static String convertStreamToString(InputStream is) {
+    private String convertStreamToString(InputStream is) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         StringBuilder sb = new StringBuilder();
 
@@ -56,12 +62,12 @@ public class HttpHandler {
                 sb.append(line).append('\n');
             }
         } catch (IOException e) {
-            Log.i(TAG, "IOException: " + e.getMessage());
+            e.printStackTrace();
         } finally {
             try {
                 is.close();
             } catch (IOException e) {
-                Log.i(TAG, "IOException: " + e.getMessage());
+                e.printStackTrace();
             }
         }
 
