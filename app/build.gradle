@@ -32,4 +32,5 @@ dependencies {
     compile 'com.github.aakira:expandable-layout:1.6.0@aar'
     compile 'com.github.pires:obd-java-api:1.0'
     compile 'com.github.pwittchen:weathericonview:1.1.0'
+    compile 'com.android.volley:volley:1.1.0'
 }

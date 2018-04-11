@@ -47,7 +47,7 @@ public class CarFragment extends Fragment {
     private static final String TAG = CarFragment.class.getSimpleName();
     private static final int REQUEST_ENABLE_BT = 10;
     private BluetoothAdapter mBluetoothAdapter;
-    private UserParameters.UserParametersListener mUserParametersListener;
+    private UserScore mUserScore;
 
     // Create a BroadcastReceiver for ACTION_FOUND.
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -78,7 +78,7 @@ public class CarFragment extends Fragment {
         super.onAttach(context);
 
         try {
-            mUserParametersListener = (UserParameters.UserParametersListener) context;
+            mUserScore.setUserParametersListener((UserScore.UserScoreListener) context);
         } catch (ClassCastException e) {
             e.printStackTrace();
         }
@@ -147,8 +147,6 @@ public class CarFragment extends Fragment {
         private final BluetoothSocket mmSocket;
         private final InputStream mmInStream;
         private final OutputStream mmOutStream;
-        private int mmMeasuresNumber;
-        private int[] mmSpeedMeasures;
 
         public ConnectedThread(BluetoothSocket socket) {
             mmSocket = socket;
@@ -183,7 +181,6 @@ public class CarFragment extends Fragment {
                 SpeedCommand speedCommand = new SpeedCommand();
                 int measuresNumber = 0;
                 int[] speedMeasures = new int[3];
-                UserParameters userParameters = new UserParameters();
 
                 while(!Thread.currentThread().isInterrupted()) {
                     speedCommand.run(mmInStream, mmOutStream);
@@ -192,7 +189,7 @@ public class CarFragment extends Fragment {
                     measuresNumber ++;
 
                     if(measuresNumber >= 3) {
-                        userParameters.setSpeedMeasures(speedMeasures);
+                        mUserScore.checkHardBraking(speedMeasures);
                         measuresNumber = 0;
                     }
                 }

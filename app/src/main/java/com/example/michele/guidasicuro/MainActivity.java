@@ -32,27 +32,30 @@ import com.google.android.gms.common.api.Status;
 
 import java.util.Calendar;
 
-public class MainActivity extends AppCompatActivity implements UserParameters.UserParametersListener{
+public class MainActivity extends AppCompatActivity implements UserScore.UserScoreListener{
     private static final String TAG = MainActivity.class.getSimpleName();
+    private static final int REQUEST_USERNAME = 1;
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
     private static final int mBreakReminderInterval = 7200000;
     private Handler mHandler = new Handler();
     private Runnable mBreakReminder;
     private BroadcastReceiver mMyReceiver;
+    private UserScore mUserScore;
+    private String mUsername;
 
     @Override
     public void onDangerousTime() {
-
+        mUserScore.setIsDangerousTime(true);
     }
 
     @Override
     public void onHardBraking() {
-
+        mUserScore.setHardBrakingCount(mUserScore.getHardBrakingCount() + 1);
     }
 
     @Override
     public void onSpeedLimitExceeded() {
-
+        mUserScore.setSpeedLimitExceededCount(mUserScore.getSpeedLimitExceededCount() + 1);
     }
 
     public class MyReceiver extends BroadcastReceiver {
@@ -86,6 +89,72 @@ public class MainActivity extends AppCompatActivity implements UserParameters.Us
                 Intent intent = new Intent(this, MyLocationService.class);
                 this.startService(intent);
             }
+        } else if(requestCode == REQUEST_USERNAME) {
+            if(resultCode == RESULT_OK) {
+                mUsername = data.getStringExtra("username");
+
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                // If the device is running Android 6.0 or higher, and your app's target SDK is 23 or higher,
+                // the app has to list the permissions in the manifest and request those permissions at run time
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    checkLocationPermission();
+                }
+
+                mUserScore = new UserScore();
+
+                // BroadcastReceiver
+                mMyReceiver = new MyReceiver();
+
+                // Register BroadcastReceiver to receive the data from the service
+                LocalBroadcastManager.getInstance(this).registerReceiver(
+                        mMyReceiver, new IntentFilter("setLocationSettings"));
+
+                //Start the service to set the location settings
+                Intent intent = new Intent(this, MyLocationService.class);
+                this.startService(intent);
+
+                BottomNavigationView bottomNavigationView = (BottomNavigationView)
+                        findViewById(R.id.bottom_navigation);
+
+                bottomNavigationView.setOnNavigationItemSelectedListener
+                        (new BottomNavigationView.OnNavigationItemSelectedListener() {
+                            @Override
+                            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                                Fragment selectedFragment = null;
+                                switch (item.getItemId()) {
+                                    case R.id.action_item1:
+                                        selectedFragment = MapFragment.newInstance();
+                                        break;
+                                    case R.id.action_item2:
+                                        selectedFragment = WeatherFragment.newInstance();
+                                        break;
+                                    case R.id.action_item3:
+                                        selectedFragment = CarFragment.newInstance();
+                                        break;
+                                }
+                                FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+                                transaction.replace(R.id.frame_layout, selectedFragment);
+                                transaction.addToBackStack(null);
+                                transaction.commit();
+                                return true;
+                            }
+                        });
+
+                //Manually displaying the first fragment - one time only
+                FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+                transaction.replace(R.id.frame_layout, MapFragment.newInstance());
+                transaction.commit();
+
+                // Runnable scheduled to remind the user to stop for a break
+                mBreakReminder = new Runnable(){
+                    public void run() {
+                        Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
+                        mHandler.postDelayed(this, mBreakReminderInterval);
+                    }
+                };
+                mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
+            }
         }
     }
 
@@ -94,7 +163,6 @@ public class MainActivity extends AppCompatActivity implements UserParameters.Us
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         if(Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN) {
             getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -106,63 +174,8 @@ public class MainActivity extends AppCompatActivity implements UserParameters.Us
             actionBar.hide();
         }
 
-        // If the device is running Android 6.0 or higher, and your app's target SDK is 23 or higher,
-        // the app has to list the permissions in the manifest and request those permissions at run time
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            checkLocationPermission();
-        }
-
-        // BroadcastReceiver
-        mMyReceiver = new MyReceiver();
-
-        // Register BroadcastReceiver to receive the data from the service
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-                mMyReceiver, new IntentFilter("setLocationSettings"));
-
-        //Start the service to set the location settings
-        Intent intent = new Intent(this, MyLocationService.class);
-        this.startService(intent);
-
-        BottomNavigationView bottomNavigationView = (BottomNavigationView)
-                findViewById(R.id.bottom_navigation);
-
-        bottomNavigationView.setOnNavigationItemSelectedListener
-                (new BottomNavigationView.OnNavigationItemSelectedListener() {
-                    @Override
-                    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                        Fragment selectedFragment = null;
-                        switch (item.getItemId()) {
-                            case R.id.action_item1:
-                                selectedFragment = MapFragment.newInstance();
-                                break;
-                            case R.id.action_item2:
-                                selectedFragment = WeatherFragment.newInstance();
-                                break;
-                            case R.id.action_item3:
-                                selectedFragment = CarFragment.newInstance();
-                                break;
-                        }
-                        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-                        transaction.replace(R.id.frame_layout, selectedFragment);
-                        transaction.addToBackStack(null);
-                        transaction.commit();
-                        return true;
-                    }
-                });
-
-        //Manually displaying the first fragment - one time only
-        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-        transaction.replace(R.id.frame_layout, MapFragment.newInstance());
-        transaction.commit();
-
-        // Runnable scheduled to remind the user to stop for a break
-        mBreakReminder = new Runnable(){
-            public void run() {
-                Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
-                mHandler.postDelayed(this, mBreakReminderInterval);
-            }
-        };
-        mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
+        Intent i = new Intent(this, LoginActivity.class);
+        startActivityForResult(i, REQUEST_USERNAME);
     }
 
     @Override
@@ -179,6 +192,7 @@ public class MainActivity extends AppCompatActivity implements UserParameters.Us
 
     @Override
     protected void onStop() {
+        // TODO: upload data to the server
         Log.i(TAG, "onStop");
         super.onStop();
         mHandler.removeCallbacks(mBreakReminder);

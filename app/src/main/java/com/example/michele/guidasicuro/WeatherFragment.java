@@ -156,6 +156,7 @@ public class WeatherFragment extends Fragment{
         }
     }
 
+    // TODO: remove asynctask and perform a request using Volley
     private class DownloadWeatherInfo extends AsyncTask<Location, Void, WeatherInfo> {
         @Override
         protected WeatherInfo doInBackground(Location... locations) {
@@ -170,16 +171,40 @@ public class WeatherFragment extends Fragment{
 
             try {
                 JSONObject weatherInfoObject = new JSONObject(jsonStr);
-                weatherInfo.setCity(weatherInfoObject.getString("name"));
-                weatherInfo.setHumidity(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("humidity")));
-                weatherInfo.setTemperature(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp")));
-                weatherInfo.setMinTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_min")));
-                weatherInfo.setMaxTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_max")));
-                weatherInfo.setWind(Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
-                weatherInfo.setSunrise(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunrise")));
-                weatherInfo.setSunset(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunset")));
-                weatherInfo.setDescription(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("description"));
-                weatherInfo.setIcon(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("icon"));
+                if(weatherInfoObject.has("name")) {
+                    weatherInfo.setCity(weatherInfoObject.getString("name"));
+                }
+                if(weatherInfoObject.getJSONObject("main").has("humidity")) {
+                    weatherInfo.setHumidity(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("humidity")));
+                }
+                if(weatherInfoObject.getJSONObject("main").has("temp")) {
+                    weatherInfo.setTemperature(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp")));
+                }
+                if(weatherInfoObject.getJSONObject("main").has("temp_min")) {
+                    weatherInfo.setMinTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_min")));
+                }
+                if(weatherInfoObject.getJSONObject("main").has("temp_max")) {
+                    weatherInfo.setMaxTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_max")));
+                }
+                if(weatherInfoObject.getJSONObject("wind").has("speed") && weatherInfoObject.getJSONObject("wind").has("deg")) {
+                    weatherInfo.setWind(Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
+                } else if(weatherInfoObject.getJSONObject("wind").has("speed") && !weatherInfoObject.getJSONObject("wind").has("deg")) {
+                    weatherInfo.setWind(Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), -1);
+                } else if(!weatherInfoObject.getJSONObject("wind").has("speed") && weatherInfoObject.getJSONObject("wind").has("deg")) {
+                    weatherInfo.setWind(-1, Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
+                }
+                if(weatherInfoObject.getJSONObject("sys").has("sunrise")) {
+                    weatherInfo.setSunrise(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunrise")));
+                }
+                if(weatherInfoObject.getJSONObject("sys").has("sunset")) {
+                    weatherInfo.setSunset(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunset")));
+                }
+                if(weatherInfoObject.getJSONArray("weather").getJSONObject(0).has("description")) {
+                    weatherInfo.setDescription(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("description"));
+                }
+                if(weatherInfoObject.getJSONArray("weather").getJSONObject(0).has("icon")) {
+                    weatherInfo.setIcon(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("icon"));
+                }
             } catch(JSONException e) {
                 e.printStackTrace();
             } catch(Exception e) {
