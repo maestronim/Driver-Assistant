@@ -17,10 +17,15 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.github.aakira.expandablelayout.ExpandableWeightLayout;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -41,8 +46,6 @@ import java.util.Calendar;
  * Created by Michele on 14/03/2018.
  */
 
-// TODO: update "hard braking", "speed limit exceeded", "dangerous time" indicators
-
 public class MapFragment extends Fragment implements OnMapReadyCallback {
     private static final String TAG = MapFragment.class.getSimpleName();
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
@@ -55,9 +58,15 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private AsyncTask mDownloadRoadInfoTask;
     private boolean isFirstMeasure;
     private boolean mDownloadRoadInfoTaskIsRunning;
+    private TextView mSpeedLimitExceededText;
+    private TextView mHardBrakingText;
+    private TextView mDangerousTimeText;
 
-    public static MapFragment newInstance() {
+    public static MapFragment newInstance(String username) {
         MapFragment fragment = new MapFragment();
+        Bundle args = new Bundle();
+        args.putString("username", username);
+        fragment.setArguments(args);
         return fragment;
     }
 
@@ -96,6 +105,23 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
                 mMyReceiver, new IntentFilter("GPSLocationUpdates"));
 
+        ((MainActivity)getActivity()).setUserScoreListener(new UserScore.UserScoreListener() {
+            @Override
+            public void onSpeedLimitExceeded() {
+                Toast.makeText(getActivity(), "Speed limit exceeded", Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onHardBraking() {
+                Toast.makeText(getActivity(), "Hard braking detected", Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onDangerousTime() {
+                Toast.makeText(getActivity(), "You are driving on dangerous time", Toast.LENGTH_LONG).show();
+            }
+        });
+
         return view;
     }
 
@@ -103,6 +129,10 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         Log.i(TAG, "onViewCreated");
         super.onViewCreated(view, savedInstanceState);
+
+        mSpeedLimitExceededText = getView().findViewById(R.id.speed_limit_exceeded);
+        mHardBrakingText = getView().findViewById(R.id.hard_braking);
+        mDangerousTimeText = getView().findViewById(R.id.dangerous_time);
 
         // Get the MapView to initialize the map system and view
         MapView mapView = (MapView) getView().findViewById(R.id.map);
@@ -112,15 +142,41 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mapView.getMapAsync(this);
         }
 
-        Calendar rightNow = Calendar.getInstance();
-        int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
+        Bundle args = getArguments();
+        String username = args.getString("username");
 
-        if(currentHour >= 22 || currentHour <= 6) {
-            TextView dangerousTime = (TextView) getView().findViewById(R.id.DangerousTime);
-            Integer precValue = Integer.valueOf(dangerousTime.getText().toString());
-            Integer actualValue = precValue += 1;
-            dangerousTime.setText(actualValue.toString());
-        }
+        String url = "http://maestronim.altervista.org/Api-Automotive/user-score/read.php?user_id=" + username;
+
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        try {
+                            if (response.getString("success").equals("yes")) {
+                                JSONObject data = response.getJSONObject("data");
+                                updateUserScore(data.getString("hard_braking"), data.getString("speed_limit_exceeded"),
+                                        data.getString("dangerous_time"));
+                            } else {
+                                Toast.makeText(getActivity(), "You have no records yet", Toast.LENGTH_LONG).show();
+                            }
+                        } catch(JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                error.printStackTrace();
+            }
+        });
+
+        MySingleton.getInstance(getActivity()).addToRequestQueue(jsonObjectRequest);
+    }
+
+    private void updateUserScore(String hardBrakingCount, String speedLimitExceededCount, String dangerousTimeCount) {
+        mHardBrakingText.setText(hardBrakingCount);
+        mSpeedLimitExceededText.setText(speedLimitExceededCount);
+        mDangerousTimeText.setText(dangerousTimeCount);
     }
 
     @Override

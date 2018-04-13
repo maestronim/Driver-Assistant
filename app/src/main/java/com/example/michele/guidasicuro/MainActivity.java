@@ -1,8 +1,13 @@
 package com.example.michele.guidasicuro;
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentSender;
@@ -25,14 +30,29 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
 
+import com.github.pires.obd.commands.SpeedCommand;
+import com.github.pires.obd.commands.protocol.EchoOffCommand;
+import com.github.pires.obd.commands.protocol.LineFeedOffCommand;
+import com.github.pires.obd.commands.protocol.SelectProtocolCommand;
+import com.github.pires.obd.commands.protocol.TimeoutCommand;
+import com.github.pires.obd.enums.ObdProtocols;
 import com.google.android.gms.common.api.Status;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Set;
+import java.util.UUID;
 
-public class MainActivity extends AppCompatActivity implements UserScore.UserScoreListener{
+// TODO: execute the requests to the Openstreetmap API and pass data to MapFragment
+
+public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final int REQUEST_USERNAME = 1;
     private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
@@ -42,35 +62,43 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
     private BroadcastReceiver mMyReceiver;
     private UserScore mUserScore;
     private String mUsername;
-
-    @Override
-    public void onDangerousTime() {
-        mUserScore.setIsDangerousTime(true);
-    }
-
-    @Override
-    public void onHardBraking() {
-        mUserScore.setHardBrakingCount(mUserScore.getHardBrakingCount() + 1);
-    }
-
-    @Override
-    public void onSpeedLimitExceeded() {
-        mUserScore.setSpeedLimitExceededCount(mUserScore.getSpeedLimitExceededCount() + 1);
-    }
+    private BluetoothAdapter mBluetoothAdapter;
+    private static final int REQUEST_ENABLE_BT = 10;
+    private String mDeviceAddress;
 
     public class MyReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "onReceive");
-            Bundle b = intent.getBundleExtra("Status");
-            Status status = b.getParcelable("Status");
-            try {
-                // Show the dialog by calling startResolutionForResult(),
-                // and check the result in onActivityResult().
-                status.startResolutionForResult(
-                        MainActivity.this, 1000);
-            } catch (IntentSender.SendIntentException e) {
-                Log.i(TAG, "Couldn't start the intent");
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                // Discovery has found a device. Get the BluetoothDevice
+                // object and its info from the Intent.
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                String deviceName = device.getName();
+                String deviceHardwareAddress = device.getAddress(); // MAC address
+                mDeviceAddress = device.getAddress(); // MAC address
+                // TODO save deviceAddress
+
+                // Register BroadcastReceiver to receive the data from the service
+                LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                        mMyReceiver, new IntentFilter("setLocationSettings"));
+
+                //Start the service to set the location settings
+                getApplication().startService(new Intent(getApplicationContext(), MyLocationService.class));
+
+                new ConnectThread(device).run();
+            } else {
+                Bundle b = intent.getBundleExtra("Status");
+                Status status = b.getParcelable("Status");
+                try {
+                    // Show the dialog by calling startResolutionForResult(),
+                    // and check the result in onActivityResult().
+                    status.startResolutionForResult(
+                            MainActivity.this, 1000);
+                } catch (IntentSender.SendIntentException e) {
+                    Log.i(TAG, "Couldn't start the intent");
+                }
             }
         }
     }
@@ -91,6 +119,7 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
             }
         } else if(requestCode == REQUEST_USERNAME) {
             if(resultCode == RESULT_OK) {
+
                 mUsername = data.getStringExtra("username");
 
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -101,18 +130,22 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
                     checkLocationPermission();
                 }
 
-                mUserScore = new UserScore();
-
                 // BroadcastReceiver
                 mMyReceiver = new MyReceiver();
 
-                // Register BroadcastReceiver to receive the data from the service
-                LocalBroadcastManager.getInstance(this).registerReceiver(
-                        mMyReceiver, new IntentFilter("setLocationSettings"));
+                mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                if (mBluetoothAdapter == null) {
+                    Log.i(TAG, "The device doesn't support Bluetooth");
+                } else {
+                    if (!mBluetoothAdapter.isEnabled()) {
+                        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                        startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+                    } else {
+                        queryPairedDevices();
+                    }
+                }
 
-                //Start the service to set the location settings
-                Intent intent = new Intent(this, MyLocationService.class);
-                this.startService(intent);
+                mUserScore = new UserScore();
 
                 BottomNavigationView bottomNavigationView = (BottomNavigationView)
                         findViewById(R.id.bottom_navigation);
@@ -124,7 +157,7 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
                                 Fragment selectedFragment = null;
                                 switch (item.getItemId()) {
                                     case R.id.action_item1:
-                                        selectedFragment = MapFragment.newInstance();
+                                        selectedFragment = MapFragment.newInstance(mUsername);
                                         break;
                                     case R.id.action_item2:
                                         selectedFragment = WeatherFragment.newInstance();
@@ -143,7 +176,7 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
 
                 //Manually displaying the first fragment - one time only
                 FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-                transaction.replace(R.id.frame_layout, MapFragment.newInstance());
+                transaction.replace(R.id.frame_layout, MapFragment.newInstance(mUsername));
                 transaction.commit();
 
                 // Runnable scheduled to remind the user to stop for a break
@@ -155,6 +188,76 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
                 };
                 mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
             }
+        } else  if(requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode == RESULT_OK) {
+                Log.i(TAG, "Bluetooth enabled");
+                queryPairedDevices();
+
+            } else if(resultCode == RESULT_CANCELED) {
+                Log.i(TAG, "Bluetooth not enabled");
+                // Register BroadcastReceiver to receive the data from the service
+                LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                        mMyReceiver, new IntentFilter("setLocationSettings"));
+
+                //Start the service to set the location settings
+                Intent intent = new Intent(getApplicationContext(), MyLocationService.class);
+                getApplication().startService(intent);
+            }
+        }
+    }
+
+    private void queryPairedDevices() {
+        ArrayList<String> deviceStrs = new ArrayList<String>();
+        final ArrayList<String> devices = new ArrayList<String>();
+
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        final Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+        if (pairedDevices.size() > 0) {
+            for (BluetoothDevice device : pairedDevices) {
+                deviceStrs.add(device.getName() + "\n" + device.getAddress());
+                devices.add(device.getAddress());
+            }
+
+            // show list
+            final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
+
+            ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.select_dialog_singlechoice,
+                    deviceStrs.toArray(new String[deviceStrs.size()]));
+
+            alertDialog.setSingleChoiceItems(adapter, -1, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    dialog.dismiss();
+                    int position = ((AlertDialog) dialog).getListView().getCheckedItemPosition();
+                    mDeviceAddress = devices.get(position);
+                    // TODO save deviceAddress
+
+                    new ConnectThread((BluetoothDevice)pairedDevices.toArray()[position]).run();
+
+                    // Register BroadcastReceiver to receive the data from the service
+                    LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                            mMyReceiver, new IntentFilter("setLocationSettings"));
+
+                    //Start the service to set the location settings
+                    Intent intent = new Intent(getApplicationContext(), MyLocationService.class);
+                    getApplication().startService(intent);
+                }
+            });
+
+            alertDialog.setTitle("Choose Bluetooth device");
+            alertDialog.show();
+        } else {
+            // Register for broadcasts when a device is discovered.
+            IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+            LocalBroadcastManager.getInstance(this).registerReceiver(mMyReceiver, filter);
+
+            // Register BroadcastReceiver to receive the data from the service
+            LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                    mMyReceiver, new IntentFilter("setLocationSettings"));
+
+            //Start the service to set the location settings
+            Intent intent = new Intent(getApplicationContext(), MyLocationService.class);
+            getApplication().startService(intent);
         }
     }
 
@@ -176,6 +279,129 @@ public class MainActivity extends AppCompatActivity implements UserScore.UserSco
 
         Intent i = new Intent(this, LoginActivity.class);
         startActivityForResult(i, REQUEST_USERNAME);
+    }
+
+    public void setUserScoreListener(UserScore.UserScoreListener userScoreListener) {
+        mUserScore.setUserScoreListener(userScoreListener);
+    }
+
+    private class ConnectThread extends Thread {
+        private final BluetoothSocket mmSocket;
+        private final BluetoothDevice mmDevice;
+
+        public ConnectThread(BluetoothDevice device) {
+            // Use a temporary object that is later assigned to mmSocket
+            // because mmSocket is final.
+            BluetoothSocket tmp = null;
+            mmDevice = device;
+
+            try {
+                // Get a BluetoothSocket to connect with the given BluetoothDevice.
+                // MY_UUID is the app's UUID string, also used in the server code.
+                tmp = device.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));
+            } catch (IOException e) {
+                Log.e(TAG, "Socket's create() method failed", e);
+            }
+            mmSocket = tmp;
+        }
+
+        public void run() {
+            // Cancel discovery because it otherwise slows down the connection.
+            mBluetoothAdapter.cancelDiscovery();
+
+            try {
+                // Connect to the remote device through the socket. This call blocks
+                // until it succeeds or throws an exception.
+                mmSocket.connect();
+            } catch (IOException connectException) {
+                // Unable to connect; close the socket and return.
+                try {
+                    mmSocket.close();
+                } catch (IOException closeException) {
+                    Log.e(TAG, "Could not close the client socket", closeException);
+                }
+                return;
+            }
+
+            // The connection attempt succeeded. Perform work associated with
+            // the connection in a separate thread.
+            new ConnectedThread(mmSocket).run();
+        }
+
+        // Closes the client socket and causes the thread to finish.
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Could not close the client socket", e);
+            }
+        }
+    }
+
+    private class ConnectedThread extends Thread {
+        private final BluetoothSocket mmSocket;
+        private final InputStream mmInStream;
+        private final OutputStream mmOutStream;
+
+        public ConnectedThread(BluetoothSocket socket) {
+            mmSocket = socket;
+            InputStream tmpIn = null;
+            OutputStream tmpOut = null;
+
+            // Get the input and output streams; using temp objects because
+            // member streams are final.
+            try {
+                tmpIn = socket.getInputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating input stream", e);
+            }
+            try {
+                tmpOut = socket.getOutputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating output stream", e);
+            }
+
+            mmInStream = tmpIn;
+            mmOutStream = tmpOut;
+        }
+
+        public void run() {
+            try {
+                // OBD2 initialization
+                new EchoOffCommand().run(mmInStream, mmOutStream);
+                new LineFeedOffCommand().run(mmInStream, mmOutStream);
+                new TimeoutCommand(200).run(mmInStream, mmOutStream);
+                new SelectProtocolCommand(ObdProtocols.AUTO).run(mmInStream, mmOutStream);
+
+                SpeedCommand speedCommand = new SpeedCommand();
+                int measuresNumber = 0;
+                int[] speedMeasures = new int[3];
+
+                while(!Thread.currentThread().isInterrupted()) {
+                    speedCommand.run(mmInStream, mmOutStream);
+                    Log.i(TAG,"Speed: " + speedCommand.getFormattedResult());
+                    speedMeasures[measuresNumber] = speedCommand.getMetricSpeed();
+                    measuresNumber ++;
+
+                    if(measuresNumber >= 3) {
+                        mUserScore.checkHardBraking(speedMeasures);
+                        measuresNumber = 0;
+                    }
+                }
+            } catch(Exception e) {
+                Log.i(TAG, "Error occurred when retrieving data from the ELM327 device");
+                this.cancel();
+            }
+        }
+
+        // Call this method from the main activity to shut down the connection.
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Could not close the connect socket", e);
+            }
+        }
     }
 
     @Override

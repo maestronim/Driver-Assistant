@@ -1,5 +1,9 @@
 package com.example.michele.guidasicuro;
 
+import android.widget.TextView;
+
+import java.util.Calendar;
+
 /**
  * Created by Michele on 04/04/2018.
  */
@@ -13,14 +17,14 @@ public class UserScore {
 
     private int mHardBrakingCount;
     private int mSpeedLimitExceededCount;
-    private boolean mIsDangerousTime;
+    private int mIsDangerousTime;
     private UserScoreListener mUserScoreListener;
 
     public UserScore() {
         mUserScoreListener = null;
         mHardBrakingCount = 0;
         mSpeedLimitExceededCount = 0;
-        mIsDangerousTime = false;
+        mIsDangerousTime = 0;
     }
 
     public void setHardBrakingCount(int hardBrakingCount) {
@@ -31,11 +35,11 @@ public class UserScore {
         this.mSpeedLimitExceededCount = speedLimitExceededCount;
     }
 
-    public void setIsDangerousTime(boolean isDangerousTime) {
+    public void setDangerousTimeCount(int isDangerousTime) {
         this.mIsDangerousTime = isDangerousTime;
     }
 
-    public void setUserParametersListener(UserScoreListener listener) {
+    public void setUserScoreListener(UserScoreListener listener) {
         mUserScoreListener = listener;
     }
 
@@ -47,7 +51,7 @@ public class UserScore {
         return this.mSpeedLimitExceededCount;
     }
 
-    public boolean isIsDangerousTime() {
+    public int getDangerousTimeCount() {
         return this.mIsDangerousTime;
     }
 
@@ -61,5 +65,12 @@ public class UserScore {
         }
     }
 
-    // TODO: fire the events
+    public void checkDangerousTime() {
+        Calendar rightNow = Calendar.getInstance();
+        int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
+
+        if(currentHour >= 22 || currentHour <= 6) {
+            mUserScoreListener.onDangerousTime();
+        }
+    }
 }
