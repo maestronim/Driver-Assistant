@@ -1,5 +1,8 @@
 package com.example.michele.guidasicuro;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+import android.util.Property;
 import android.widget.TextView;
 
 import java.util.Calendar;
@@ -8,23 +11,29 @@ import java.util.Calendar;
  * Created by Michele on 04/04/2018.
  */
 
-public class UserScore {
+public class UserScore implements Parcelable{
     public interface UserScoreListener {
-        public void onSpeedLimitExceeded();
-        public void onHardBraking();
-        public void onDangerousTime();
+        public void onSpeedLimitExceeded(int speedLimitExceededCount);
+        public void onHardBraking(int hardBrakingCount);
+        public void onDangerousTime(int dangerousTimeCount);
     }
 
     private int mHardBrakingCount;
     private int mSpeedLimitExceededCount;
-    private int mIsDangerousTime;
+    private int mDangerousTimeCount;
     private UserScoreListener mUserScoreListener;
 
     public UserScore() {
         mUserScoreListener = null;
         mHardBrakingCount = 0;
         mSpeedLimitExceededCount = 0;
-        mIsDangerousTime = 0;
+        mDangerousTimeCount = 0;
+    }
+
+    public UserScore(int hardBrakingCount, int speedLimitExceededCount, int dangerousTimeCount) {
+        this.mHardBrakingCount = hardBrakingCount;
+        this.mSpeedLimitExceededCount = speedLimitExceededCount;
+        this.mDangerousTimeCount = dangerousTimeCount;
     }
 
     public void setHardBrakingCount(int hardBrakingCount) {
@@ -35,8 +44,8 @@ public class UserScore {
         this.mSpeedLimitExceededCount = speedLimitExceededCount;
     }
 
-    public void setDangerousTimeCount(int isDangerousTime) {
-        this.mIsDangerousTime = isDangerousTime;
+    public void setDangerousTimeCount(int dangerousTimeCount) {
+        this.mDangerousTimeCount = dangerousTimeCount;
     }
 
     public void setUserScoreListener(UserScoreListener listener) {
@@ -52,7 +61,7 @@ public class UserScore {
     }
 
     public int getDangerousTimeCount() {
-        return this.mIsDangerousTime;
+        return this.mDangerousTimeCount;
     }
 
     public void checkHardBraking(int[] speedMeasures) {
@@ -60,7 +69,8 @@ public class UserScore {
 
         if(initialSpeed >= 32) {
             if(((speedMeasures[0] - speedMeasures[1]) + (speedMeasures[1] - speedMeasures[2])) > 14) {
-                mUserScoreListener.onHardBraking();
+                mHardBrakingCount += 1;
+                mUserScoreListener.onHardBraking(mHardBrakingCount);
             }
         }
     }
@@ -70,7 +80,48 @@ public class UserScore {
         int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
 
         if(currentHour >= 22 || currentHour <= 6) {
-            mUserScoreListener.onDangerousTime();
+            mDangerousTimeCount += 1;
+            mUserScoreListener.onDangerousTime(mDangerousTimeCount);
         }
+    }
+
+    public void checkSpeedLimitExceeded(int speed, int speedLimit) {
+        if(speed > speedLimit) {
+            mSpeedLimitExceededCount += 1;
+            mUserScoreListener.onSpeedLimitExceeded(mSpeedLimitExceededCount);
+        }
+    }
+
+    //write object values to parcel for storage
+    public void writeToParcel(Parcel dest, int flags){
+        dest.writeInt(mHardBrakingCount);
+        dest.writeInt(mSpeedLimitExceededCount);
+        dest.writeInt(mDangerousTimeCount);
+    }
+
+    //constructor used for parcel
+    public UserScore(Parcel parcel){
+        this.mHardBrakingCount = parcel.readInt();
+        this.mSpeedLimitExceededCount = parcel.readInt();
+        this.mDangerousTimeCount = parcel.readInt();
+    }
+
+    //creator - used when un-parceling our parcle (creating the object)
+    public static final Parcelable.Creator<UserScore> CREATOR = new Parcelable.Creator<UserScore>(){
+
+        @Override
+        public UserScore createFromParcel(Parcel parcel) {
+            return new UserScore(parcel);
+        }
+
+        @Override
+        public UserScore[] newArray(int size) {
+            return new UserScore[size];
+        }
+    };
+
+    //return hashcode of object
+    public int describeContents() {
+        return hashCode();
     }
 }

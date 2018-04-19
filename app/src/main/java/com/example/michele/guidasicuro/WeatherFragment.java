@@ -1,10 +1,12 @@
 package com.example.michele.guidasicuro;
 
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Point;
+import android.os.Parcel;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.BottomNavigationView;
@@ -29,6 +31,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.github.pwittchen.weathericonview.WeatherIconView;
 
 import org.json.JSONException;
@@ -37,8 +43,11 @@ import org.json.JSONObject;
 import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.net.Inet4Address;
+import java.text.DateFormat;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +62,8 @@ public class WeatherFragment extends Fragment{
     public static final String TAG = WeatherFragment.class.getSimpleName();
     private Location mLocation;
     private BroadcastReceiver mMyReceiver;
+    private WeatherInfo mWeatherInfo;
+    private boolean mIsFirstTime;
 
     public static WeatherFragment newInstance() {
         WeatherFragment fragment = new WeatherFragment();
@@ -63,6 +74,8 @@ public class WeatherFragment extends Fragment{
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
+
+        mIsFirstTime = true;
     }
 
     private int getMainLayoutHeight() {
@@ -81,6 +94,8 @@ public class WeatherFragment extends Fragment{
 
         // BroadcastReceiver
         mMyReceiver = new MyReceiver();
+        
+        mWeatherInfo = new WeatherInfo();
 
         // Register BroadcastReceiver to receive the data from the service
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
@@ -106,16 +121,27 @@ public class WeatherFragment extends Fragment{
         WeatherIconView weatherConditionIcon = (WeatherIconView) getView().findViewById(R.id.weather_condition_icon);
         weatherConditionIcon.setHeight(getPixelsFromDp(100f));
         weatherConditionIcon.setWidth(getPixelsFromDp(100f));
+        weatherConditionIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 75f);
 
         WeatherIconView humidityIcon = (WeatherIconView) getView().findViewById(R.id.humidity_icon);
-        humidityIcon.setHeight(getPixelsFromDp(80f));
-        humidityIcon.setWidth(getPixelsFromDp(80f));
+        humidityIcon.setHeight(getPixelsFromDp(75f));
+        humidityIcon.setWidth(getPixelsFromDp(75f));
+        humidityIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 55f);
 
         WeatherIconView windIcon = (WeatherIconView) getView().findViewById(R.id.wind_icon);
-        windIcon.setHeight(getPixelsFromDp(80f));
-        windIcon.setWidth(getPixelsFromDp(80f));
+        windIcon.setHeight(getPixelsFromDp(75f));
+        windIcon.setWidth(getPixelsFromDp(75f));
+        windIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 55f);
 
-        // TODO: fix the icon size
+        WeatherIconView sunriseIcon = (WeatherIconView) getView().findViewById(R.id.sunrise_icon);
+        sunriseIcon.setHeight(getPixelsFromDp(75f));
+        sunriseIcon.setWidth(getPixelsFromDp(75f));
+        sunriseIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 55f);
+
+        WeatherIconView sunsetIcon = (WeatherIconView) getView().findViewById(R.id.sunset_icon);
+        sunsetIcon.setHeight(getPixelsFromDp(75f));
+        sunsetIcon.setWidth(getPixelsFromDp(75f));
+        sunsetIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 55f);
     }
 
     int getPixelsFromDp(float dp) {
@@ -152,118 +178,135 @@ public class WeatherFragment extends Fragment{
             Bundle b = intent.getBundleExtra("Location");
             mLocation = (Location) b.getParcelable("Location");
 
-            new DownloadWeatherInfo().execute(mLocation);
+            final ProgressDialog progressDialog = new ProgressDialog(getActivity(),
+                    ProgressDialog.STYLE_SPINNER);
+            if(mIsFirstTime) {
+                progressDialog.setIndeterminate(true);
+                progressDialog.setMessage("Loading...");
+                progressDialog.show();
+            }
+
+            String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + mLocation.getLatitude() + "&lon=" + mLocation.getLongitude() + "&units=metric&appid=f4811ea576efe623ab627935c542d838";
+
+            JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                    new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            try {
+                                JSONObject weatherInfoObject = response;
+                                if(weatherInfoObject.has("name")) {
+                                    mWeatherInfo.setCity(weatherInfoObject.getString("name"));
+                                }
+                                if(weatherInfoObject.getJSONObject("main").has("humidity")) {
+                                    mWeatherInfo.setHumidity(weatherInfoObject.getJSONObject("main").getInt("humidity"));
+                                }
+                                if(weatherInfoObject.getJSONObject("main").has("temp")) {
+                                    mWeatherInfo.setTemperature(Math.round(weatherInfoObject.getJSONObject("main").getDouble("temp")));
+                                }
+                                if(weatherInfoObject.getJSONObject("main").has("temp_min")) {
+                                    mWeatherInfo.setMinTemperature(weatherInfoObject.getJSONObject("main").getInt("temp_min"));
+                                }
+                                if(weatherInfoObject.getJSONObject("main").has("temp_max")) {
+                                    mWeatherInfo.setMaxTemperature(weatherInfoObject.getJSONObject("main").getInt("temp_max"));
+                                }
+                                if(weatherInfoObject.getJSONObject("wind").has("speed") && weatherInfoObject.getJSONObject("wind").has("deg")) {
+                                    mWeatherInfo.setWind(Math.round(weatherInfoObject.getJSONObject("wind").getDouble("speed")), weatherInfoObject.getJSONObject("wind").getInt("deg"));
+                                } else if(weatherInfoObject.getJSONObject("wind").has("speed") && !weatherInfoObject.getJSONObject("wind").has("deg")) {
+                                    mWeatherInfo.setWind(Math.round(weatherInfoObject.getJSONObject("wind").getDouble("speed")), -1);
+                                }
+                                if(weatherInfoObject.getJSONObject("sys").has("sunrise")) {
+                                    mWeatherInfo.setSunrise(weatherInfoObject.getJSONObject("sys").getLong("sunrise"));
+                                }
+                                if(weatherInfoObject.getJSONObject("sys").has("sunset")) {
+                                    mWeatherInfo.setSunset(weatherInfoObject.getJSONObject("sys").getLong("sunset"));
+                                }
+                                if(weatherInfoObject.getJSONArray("weather").getJSONObject(0).has("description")) {
+                                    mWeatherInfo.setDescription(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("description"));
+                                }
+                                if(weatherInfoObject.getJSONArray("weather").getJSONObject(0).has("icon")) {
+                                    mWeatherInfo.setIcon(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("icon"));
+                                }
+                            } catch(JSONException e) {
+                                e.printStackTrace();
+                            } catch(Exception e) {
+                                e.printStackTrace();
+                            }
+
+                            updateUI();
+
+                            if(mIsFirstTime) {
+                                mIsFirstTime = false;
+                                progressDialog.dismiss();
+                            }
+                        }
+                    }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    error.printStackTrace();
+                }
+            });
+
+            MySingleton.getInstance(getActivity()).addToRequestQueue(jsonObjectRequest);
         }
     }
+    
+    private void updateUI() {
+        try {
+            TextView weatherCity = (TextView) getView().findViewById(R.id.weather_city);
+            weatherCity.setText(mWeatherInfo.getCity());
 
-    // TODO: remove asynctask and perform a request using Volley
-    private class DownloadWeatherInfo extends AsyncTask<Location, Void, WeatherInfo> {
-        @Override
-        protected WeatherInfo doInBackground(Location... locations) {
-            Log.i(TAG, "doInBackground");
-            HttpHandler httpHandler = new HttpHandler();
-            WeatherInfo weatherInfo = new WeatherInfo();
-            String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + locations[0].getLatitude() + "&lon=" + locations[0].getLongitude() + "&units=metric&appid=f4811ea576efe623ab627935c542d838";
-            // Make a request to url and get response
-            String jsonStr = httpHandler.makeServiceCall(url);
+            TextView weatherDescription = (TextView) getView().findViewById(R.id.weather_description);
+            weatherDescription.setText(mWeatherInfo.getDescription());
 
-            Log.i(TAG, jsonStr);
+            TextView temperature = (TextView) getView().findViewById(R.id.temp);
+            temperature.setText(formatNumber(mWeatherInfo.getTemperature()) + "°");
 
-            try {
-                JSONObject weatherInfoObject = new JSONObject(jsonStr);
-                if(weatherInfoObject.has("name")) {
-                    weatherInfo.setCity(weatherInfoObject.getString("name"));
-                }
-                if(weatherInfoObject.getJSONObject("main").has("humidity")) {
-                    weatherInfo.setHumidity(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("humidity")));
-                }
-                if(weatherInfoObject.getJSONObject("main").has("temp")) {
-                    weatherInfo.setTemperature(Double.parseDouble(weatherInfoObject.getJSONObject("main").getString("temp")));
-                }
-                if(weatherInfoObject.getJSONObject("main").has("temp_min")) {
-                    weatherInfo.setMinTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_min")));
-                }
-                if(weatherInfoObject.getJSONObject("main").has("temp_max")) {
-                    weatherInfo.setMaxTemperature(Integer.parseInt(weatherInfoObject.getJSONObject("main").getString("temp_max")));
-                }
-                if(weatherInfoObject.getJSONObject("wind").has("speed") && weatherInfoObject.getJSONObject("wind").has("deg")) {
-                    weatherInfo.setWind(Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
-                } else if(weatherInfoObject.getJSONObject("wind").has("speed") && !weatherInfoObject.getJSONObject("wind").has("deg")) {
-                    weatherInfo.setWind(Math.round(Double.parseDouble(weatherInfoObject.getJSONObject("wind").getString("speed"))), -1);
-                } else if(!weatherInfoObject.getJSONObject("wind").has("speed") && weatherInfoObject.getJSONObject("wind").has("deg")) {
-                    weatherInfo.setWind(-1, Integer.parseInt(weatherInfoObject.getJSONObject("wind").getString("deg")));
-                }
-                if(weatherInfoObject.getJSONObject("sys").has("sunrise")) {
-                    weatherInfo.setSunrise(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunrise")));
-                }
-                if(weatherInfoObject.getJSONObject("sys").has("sunset")) {
-                    weatherInfo.setSunset(Double.parseDouble(weatherInfoObject.getJSONObject("sys").getString("sunset")));
-                }
-                if(weatherInfoObject.getJSONArray("weather").getJSONObject(0).has("description")) {
-                    weatherInfo.setDescription(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("description"));
-                }
-                if(weatherInfoObject.getJSONArray("weather").getJSONObject(0).has("icon")) {
-                    weatherInfo.setIcon(weatherInfoObject.getJSONArray("weather").getJSONObject(0).getString("icon"));
-                }
-            } catch(JSONException e) {
-                e.printStackTrace();
-            } catch(Exception e) {
-                e.printStackTrace();
-            }
+            TextView minTemperature = (TextView) getView().findViewById(R.id.min_temp_value);
+            minTemperature.setText(String.valueOf(mWeatherInfo.getMinTemperature()) + "°");
 
-            return weatherInfo;
-        }
+            TextView maxTemperature = (TextView) getView().findViewById(R.id.max_temp_value);
+            maxTemperature.setText(String.valueOf(mWeatherInfo.getMaxTemperature()) + "°");
 
-        @Override
-        protected void onPostExecute(WeatherInfo weatherInfo) {
-            Log.i(TAG, "onPostExecute");
-            super.onPostExecute(weatherInfo);
+            TextView humidity = (TextView) getView().findViewById(R.id.humidity_value);
+            humidity.setText(String.valueOf(mWeatherInfo.getHumidity()) + "%");
 
-            if(weatherInfo.getCity() != null) {
-                Log.i(TAG, "City: " + weatherInfo.getCity());
-            }
+            TextView windSpeed = (TextView) getView().findViewById(R.id.wind_speed_value);
+            windSpeed.setText(formatNumber(mWeatherInfo.getWindSpeed()) + "km/h");
 
-            try {
-                TextView weatherCity = (TextView) getView().findViewById(R.id.weather_city);
-                weatherCity.setText(weatherInfo.getCity());
-
-                TextView weatherDescription = (TextView) getView().findViewById(R.id.weather_description);
-                weatherDescription.setText(weatherInfo.getDescription());
-
-                TextView temperature = (TextView) getView().findViewById(R.id.temp);
-                temperature.setText(formatNumber(weatherInfo.getTemperature()) + "°");
-
-                Log.i(TAG, "temperature: " + String.valueOf(weatherInfo.getTemperature()));
-
-                TextView minTemperature = (TextView) getView().findViewById(R.id.min_temp_value);
-                minTemperature.setText(formatNumber(weatherInfo.getMinTemperature()));
-
-                TextView maxTemperature = (TextView) getView().findViewById(R.id.max_temp_value);
-                maxTemperature.setText(formatNumber(weatherInfo.getMaxTemperature()));
-
-                TextView humidity = (TextView) getView().findViewById(R.id.humidity_value);
-                humidity.setText(String.valueOf(weatherInfo.getHumidity()) + "%");
-
-                TextView windSpeed = (TextView) getView().findViewById(R.id.wind_speed_value);
-                windSpeed.setText(formatNumber(weatherInfo.getWindSpeed()));
-
+            if(mWeatherInfo.getWindDirection() != -1) {
                 TextView windDirection = (TextView) getView().findViewById(R.id.wind_direction_value);
-                windDirection.setText(String.valueOf(weatherInfo.getWindDirection()));
-
-                HashMap<String, Integer> icon_and_background = getIconAndBackground(weatherInfo.getIcon());
-
-                WeatherIconView weatherIcon = (WeatherIconView) getView().findViewById(R.id.weather_condition_icon);
-                weatherIcon.setIconResource(getString(icon_and_background.get("icon")));
-
-                Log.i(TAG, getString(icon_and_background.get("background")));
-
-                RelativeLayout weatherTopLayout = (RelativeLayout) getView().findViewById(R.id.weather_top_layout);
-                weatherTopLayout.setBackgroundResource(icon_and_background.get("background"));
-            } catch(NullPointerException e) {
-                e.printStackTrace();
-            } catch(Exception e) {
-                e.printStackTrace();
+                windDirection.setText(String.valueOf(mWeatherInfo.getWindDirection()));
+            } else {
+                TextView windDirection = (TextView) getView().findViewById(R.id.wind_direction_value);
+                windDirection.setText("n.d.");
             }
+
+            DateFormat formatter = new SimpleDateFormat("HH:mm");
+            Calendar calendar = Calendar.getInstance();
+
+            calendar.setTimeInMillis(mWeatherInfo.getSunrise() * 1000);
+
+            TextView sunrise = (TextView) getView().findViewById(R.id.sunrise_text);
+            sunrise.setText(formatter.format(calendar.getTime()));
+
+            calendar.setTimeInMillis(mWeatherInfo.getSunset() * 1000);
+
+            TextView sunset = (TextView) getView().findViewById(R.id.sunset_text);
+            sunset.setText(formatter.format(calendar.getTime()));
+
+            HashMap<String, Integer> icon_and_background = getIconAndBackground(mWeatherInfo.getIcon());
+
+            WeatherIconView weatherIcon = (WeatherIconView) getView().findViewById(R.id.weather_condition_icon);
+            weatherIcon.setIconResource(getString(icon_and_background.get("icon")));
+
+            Log.i(TAG, getString(icon_and_background.get("background")));
+
+            RelativeLayout weatherTopLayout = (RelativeLayout) getView().findViewById(R.id.weather_top_layout);
+            weatherTopLayout.setBackgroundResource(icon_and_background.get("background"));
+        } catch(NullPointerException e) {
+            e.printStackTrace();
+        } catch(Exception e) {
+            e.printStackTrace();
         }
     }
 

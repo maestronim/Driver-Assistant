@@ -99,14 +99,14 @@ public class MyLocationService extends Service implements GoogleApiClient.Connec
                 switch (status.getStatusCode()) {
                     case LocationSettingsStatusCodes.SUCCESS:
                         Log.i(TAG, "Success");
-                        requestLocationUpdates();
+                        sendResolutionIntentRequest(true, null);
 
                         break;
                     case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
                         Log.i(TAG, "Resolution required");
                         // Location settings are not satisfied. But could be fixed by showing the user
                         // a dialog.
-                        sendResolutionIntentRequest(status);
+                        sendResolutionIntentRequest(false, status);
                         break;
                     case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
                         Log.i(TAG, "Settings change unavailable");
@@ -151,12 +151,19 @@ public class MyLocationService extends Service implements GoogleApiClient.Connec
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
-    private void sendResolutionIntentRequest(Status status) {
+    private void sendResolutionIntentRequest(boolean isGPSEnabled,Status status) {
         Intent intent = new Intent();
         intent.setAction("setLocationSettings");
         Bundle b = new Bundle();
-        b.putParcelable("Status", status);
-        intent.putExtra("Status", b);
+
+        if(isGPSEnabled) {
+            b.putBoolean("isGPSEnabled", true);
+        } else {
+            b.putBoolean("isGPSEnabled", false);
+            b.putParcelable("Status", status);
+        }
+
+        intent.putExtra("LocationSettings", b);
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 }

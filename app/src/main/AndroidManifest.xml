@@ -50,13 +50,6 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="setLocationSettings"/>
-            </intent-filter>
-        </receiver>
-
-        <receiver android:name=".WeatherFragment$MyReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
                 <action android:name="GPSLocationUpdates"/>
             </intent-filter>
         </receiver>

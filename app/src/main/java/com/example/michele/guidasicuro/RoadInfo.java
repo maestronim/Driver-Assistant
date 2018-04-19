@@ -15,12 +15,18 @@ public class RoadInfo {
     private String Name;
     private int MaxSpeed;
     private String Highway;
-    private boolean isBridge;
-    private boolean isTunnel;
+    private String type;
+    private RoadInfoListener mRoadInfoListener;
+
+    public interface RoadInfoListener {
+        public void onRoadChanged(RoadInfo roadInfo);
+    }
 
     public RoadInfo() {
-        this.isBridge = false;
-        this.isTunnel = false;
+    }
+
+    public void setRoadInfoListener(RoadInfoListener roadInfoListener) {
+        this.mRoadInfoListener = roadInfoListener;
     }
 
     public void setID(String ID) {
@@ -39,12 +45,8 @@ public class RoadInfo {
         this.Highway = highway;
     }
 
-    public void setBridge() {
-        this.isBridge = true;
-    }
-
-    public void setTunnel() {
-        this.isTunnel = true;
+    public void setType(String type) {
+        this.type = type;
     }
 
     public String getName() {
@@ -63,11 +65,11 @@ public class RoadInfo {
         return this.ID;
     }
 
-    public boolean isBridge() {
-        return this.isBridge;
+    public String getType(){
+        return this.type;
     }
 
-    public boolean isTunnel() {
-        return this.isTunnel;
+    public RoadInfoListener getRoadInfoListener() {
+        return this.mRoadInfoListener;
     }
 }

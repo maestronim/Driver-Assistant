@@ -2,6 +2,7 @@ package com.example.michele.guidasicuro;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -12,6 +13,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,6 +36,10 @@ import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
 
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.github.pires.obd.commands.SpeedCommand;
 import com.github.pires.obd.commands.protocol.EchoOffCommand;
 import com.github.pires.obd.commands.protocol.LineFeedOffCommand;
@@ -42,15 +48,19 @@ import com.github.pires.obd.commands.protocol.TimeoutCommand;
 import com.github.pires.obd.enums.ObdProtocols;
 import com.google.android.gms.common.api.Status;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
-// TODO: execute the requests to the Openstreetmap API and pass data to MapFragment
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -61,16 +71,21 @@ public class MainActivity extends AppCompatActivity {
     private Runnable mBreakReminder;
     private BroadcastReceiver mMyReceiver;
     private UserScore mUserScore;
+    private UserScore mOriginalUserScore;
     private String mUsername;
     private BluetoothAdapter mBluetoothAdapter;
     private static final int REQUEST_ENABLE_BT = 10;
     private String mDeviceAddress;
+    private Location mLocation;
+    private RoadInfo mRoadInfo;
+    private String mPreviousRoadID;
 
     public class MyReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "onReceive");
             String action = intent.getAction();
+            Log.i(TAG, "Action: " + action);
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Discovery has found a device. Get the BluetoothDevice
                 // object and its info from the Intent.
@@ -80,25 +95,211 @@ public class MainActivity extends AppCompatActivity {
                 mDeviceAddress = device.getAddress(); // MAC address
                 // TODO save deviceAddress
 
-                // Register BroadcastReceiver to receive the data from the service
-                LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
-                        mMyReceiver, new IntentFilter("setLocationSettings"));
-
-                //Start the service to set the location settings
-                getApplication().startService(new Intent(getApplicationContext(), MyLocationService.class));
-
                 new ConnectThread(device).run();
-            } else {
-                Bundle b = intent.getBundleExtra("Status");
-                Status status = b.getParcelable("Status");
-                try {
-                    // Show the dialog by calling startResolutionForResult(),
-                    // and check the result in onActivityResult().
-                    status.startResolutionForResult(
-                            MainActivity.this, 1000);
-                } catch (IntentSender.SendIntentException e) {
-                    Log.i(TAG, "Couldn't start the intent");
+            } else if(intent.getAction().equals("setLocationSettings")){
+                Bundle b = intent.getBundleExtra("LocationSettings");
+                boolean isGPSEnabled = b.getBoolean("isGPSEnabled");
+
+                if(!isGPSEnabled) {
+                    Status status = b.getParcelable("Status");
+                    try {
+                        // Show the dialog by calling startResolutionForResult(),
+                        // and check the result in onActivityResult().
+                        status.startResolutionForResult(
+                                MainActivity.this, 1000);
+                    } catch (IntentSender.SendIntentException e) {
+                        Log.i(TAG, "Couldn't start the intent");
+                    }
+                } else {
+                    // Register BroadcastReceiver to receive the data from the service
+                    LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                            mMyReceiver, new IntentFilter("GPSLocationUpdates"));
+
+                    //Start the service for location updates
+                    Intent i = new Intent(getApplicationContext(), MyLocationService.class);
+                    getApplication().startService(i);
                 }
+            } else if(intent.getAction().equals("GPSLocationUpdates")) {
+                Bundle b = intent.getBundleExtra("Location");
+                mLocation = (Location) b.getParcelable("Location");
+
+                Log.i(TAG, "init");
+
+                String url = "https://nominatim.openstreetmap.org/reverse?email=michelemaestroni9@gmail.com&format=json&lat=" + mLocation.getLatitude() + "&lon=" + mLocation.getLongitude() + "&zoom=16";
+                JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                        new Response.Listener<JSONObject>() {
+                            @Override
+                            public void onResponse(JSONObject response) {
+                                try {
+                                    mRoadInfo.setID(response.getString("osm_id"));
+                                    mRoadInfo.setType(response.getString("osm_type"));
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+
+                                boolean isSameRoad = false, isFirstRequest = false;
+
+                                if(mPreviousRoadID == null) {
+                                    isFirstRequest = true;
+                                } else {
+                                    if(mRoadInfo.getID().equals(mPreviousRoadID)) {
+                                        isSameRoad = true;
+                                    }
+                                }
+
+                                if(!isSameRoad || isFirstRequest) {
+                                    mPreviousRoadID = mRoadInfo.getID();
+
+                                    Log.i(TAG, "not same road");
+
+                                    String url = "http://overpass-api.de/api/interpreter?data=[out:json];" + mRoadInfo.getType() + "(" + mRoadInfo.getID() + ");out;";
+                                    JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                                            new Response.Listener<JSONObject>() {
+                                                @Override
+                                                public void onResponse(JSONObject response) {
+                                                    boolean isARoad = false;
+                                                    boolean maxSpeedIsDefined = false;
+                                                    try {
+                                                        JSONObject tags = response.getJSONArray("elements").getJSONObject(0).getJSONObject("tags");
+                                                        Log.i(TAG, "Tags: " + tags);
+                                                        // Get road info
+                                                        if (mRoadInfo.getType().equals("way")) {
+                                                            if (tags.has("highway") || tags.has("junction")) {
+                                                                isARoad = true;
+                                                            }
+                                                        } else if (mRoadInfo.getType().equals("area")) {
+                                                            if ((tags.has("highway") && tags.has("area"))) {
+                                                                if (tags.getString("area").equals("yes")) {
+                                                                    isARoad = true;
+                                                                }
+                                                            }
+                                                        }
+
+                                                        if (isARoad) {
+                                                            mRoadInfo.setHighway(tags.getString("highway"));
+                                                            if (mRoadInfo.getHighway().equals("motorway")) {
+                                                                mRoadInfo.setMaxSpeed(130);
+                                                                maxSpeedIsDefined = true;
+
+                                                            } else if (mRoadInfo.getHighway().equals("residential")) {
+                                                                mRoadInfo.setMaxSpeed(50);
+                                                                maxSpeedIsDefined = true;
+                                                            }
+
+                                                            if (tags.has("name")) {
+                                                                mRoadInfo.setName(tags.getString("name"));
+                                                            }
+
+                                                            if (tags.has("maxspeed")) {
+                                                                mRoadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
+                                                                maxSpeedIsDefined = true;
+                                                            }
+                                                        }
+                                                    } catch (JSONException e) {
+                                                        e.printStackTrace();
+                                                    } catch (Exception e) {
+                                                        e.printStackTrace();
+                                                    }
+
+                                                    if (!maxSpeedIsDefined) {
+                                                        BoundingBox boundingBox = new BoundingBox();
+                                                        // TODO: Distance needs to be defined
+                                                        boundingBox.calculate(mLocation, 500);
+
+                                                        String url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];way[highway=residential](" +
+                                                                boundingBox.getSouthernLimit() + "," +
+                                                                boundingBox.getWesternLimit() + "," +
+                                                                boundingBox.getNorthernLimit() + "," +
+                                                                boundingBox.getEasternLimit() + ");out;";
+
+                                                        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                                                                new Response.Listener<JSONObject>() {
+                                                                    @Override
+                                                                    public void onResponse(JSONObject response) {
+                                                                        try {
+                                                                            // The road is urban if there are residential roads within the distance
+                                                                            if (response.getJSONArray("elements").length() > 0) {
+                                                                                Log.i(TAG, "The road is urban");
+                                                                                switch (mRoadInfo.getHighway()) {
+                                                                                    case "trunk":
+                                                                                        mRoadInfo.setMaxSpeed(70);
+                                                                                        break;
+                                                                                    case "primary":
+                                                                                        mRoadInfo.setMaxSpeed(50);
+                                                                                        break;
+                                                                                    case "secondary":
+                                                                                        mRoadInfo.setMaxSpeed(50);
+                                                                                        break;
+                                                                                    case "tertiary":
+                                                                                        mRoadInfo.setMaxSpeed(50);
+                                                                                        break;
+                                                                                    case "unclassified":
+                                                                                        mRoadInfo.setMaxSpeed(50);
+                                                                                        break;
+                                                                                }
+                                                                            } else {
+                                                                                Log.i(TAG, "The road is interurban");
+                                                                                switch (mRoadInfo.getHighway()) {
+                                                                                    case "trunk":
+                                                                                        mRoadInfo.setMaxSpeed(110);
+                                                                                        break;
+                                                                                    case "primary":
+                                                                                        mRoadInfo.setMaxSpeed(90);
+                                                                                        break;
+                                                                                    case "secondary":
+                                                                                        mRoadInfo.setMaxSpeed(90);
+                                                                                        break;
+                                                                                    case "tertiary":
+                                                                                        mRoadInfo.setMaxSpeed(90);
+                                                                                        break;
+                                                                                    case "unclassified":
+                                                                                        mRoadInfo.setMaxSpeed(70);
+                                                                                        break;
+                                                                                }
+                                                                            }
+                                                                        } catch (JSONException e) {
+                                                                            e.printStackTrace();
+                                                                        } catch (Exception e) {
+                                                                            e.printStackTrace();
+                                                                        }
+
+                                                                        Log.i(TAG, "end");
+
+                                                                        mRoadInfo.getRoadInfoListener().onRoadChanged(mRoadInfo);
+                                                                    }
+                                                                }, new Response.ErrorListener() {
+                                                            @Override
+                                                            public void onErrorResponse(VolleyError error) {
+                                                                error.printStackTrace();
+                                                                Toast.makeText(getApplicationContext(), "An error occurred in retrieving the road info", Toast.LENGTH_LONG).show();
+                                                            }
+                                                        });
+
+                                                        MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
+                                                    }
+                                                }
+                                            }, new Response.ErrorListener() {
+                                        @Override
+                                        public void onErrorResponse(VolleyError error) {
+                                            error.printStackTrace();
+                                            Toast.makeText(getApplicationContext(), "An error occurred in retrieving the road info", Toast.LENGTH_LONG).show();
+                                        }
+                                    });
+
+                                    MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
+                                }
+                            }
+                        }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        error.printStackTrace();
+                        Toast.makeText(getApplicationContext(), "An error occurred in retrieving the road info", Toast.LENGTH_LONG).show();
+                    }
+                });
+
+                MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
             }
         }
     }
@@ -110,13 +311,18 @@ public class MainActivity extends AppCompatActivity {
 
         if(requestCode == 1000) {
             if(resultCode == RESULT_OK) {
-                Log.i(TAG, "Result ok");
-                // Stop register the BroadcastReceiver
-                LocalBroadcastManager.getInstance(this).unregisterReceiver(mMyReceiver);
-                //Start the service for location updates
-                Intent intent = new Intent(this, MyLocationService.class);
-                this.startService(intent);
+                Toast.makeText(this, "GPS enabled", Toast.LENGTH_LONG).show();
+            } else if(resultCode == RESULT_CANCELED) {
+                Toast.makeText(this, "GPS not enabled", Toast.LENGTH_LONG).show();
             }
+
+            // Register BroadcastReceiver to receive the data from the service
+            LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                    mMyReceiver, new IntentFilter("GPSLocationUpdates"));
+
+            //Start the service for location updates
+            Intent intent = new Intent(this, MyLocationService.class);
+            this.startService(intent);
         } else if(requestCode == REQUEST_USERNAME) {
             if(resultCode == RESULT_OK) {
 
@@ -129,6 +335,51 @@ public class MainActivity extends AppCompatActivity {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     checkLocationPermission();
                 }
+
+                final ProgressDialog progressDialog = new ProgressDialog(MainActivity.this,
+                        ProgressDialog.STYLE_SPINNER);
+                progressDialog.setIndeterminate(true);
+                progressDialog.setMessage("Retrieving user data...");
+                progressDialog.show();
+
+                String url = "http://maestronim.altervista.org/Api-Automotive/user-score/read.php?user_id=" + mUsername;
+
+                JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                        new Response.Listener<JSONObject>() {
+                            @Override
+                            public void onResponse(JSONObject response) {
+                                try {
+                                    if (response.getString("success").equals("yes")) {
+                                        JSONObject data = response.getJSONObject("data");
+                                        mUserScore = new UserScore(data.getInt("hard_braking"),
+                                                data.getInt("speed_limit_exceeded"), data.getInt("dangerous_time"));
+
+                                        mOriginalUserScore = new UserScore(mUserScore.getHardBrakingCount(),
+                                                mUserScore.getSpeedLimitExceededCount(), mUserScore.getDangerousTimeCount());
+
+                                        progressDialog.dismiss();
+
+                                        //Manually displaying the first fragment - one time only
+                                        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+                                        transaction.replace(R.id.frame_layout, MapFragment.newInstance(mUserScore));
+                                        transaction.addToBackStack(null);
+                                        transaction.commit();
+                                    } else {
+                                        Toast.makeText(getApplicationContext(), "You have no records yet", Toast.LENGTH_LONG).show();
+                                    }
+                                } catch(JSONException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        error.printStackTrace();
+                        Toast.makeText(getApplicationContext(), "An error occurred in retrieving the user info", Toast.LENGTH_LONG).show();
+                    }
+                });
+
+                MySingleton.getInstance(this).addToRequestQueue(jsonObjectRequest);
 
                 // BroadcastReceiver
                 mMyReceiver = new MyReceiver();
@@ -145,8 +396,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                mUserScore = new UserScore();
-
                 BottomNavigationView bottomNavigationView = (BottomNavigationView)
                         findViewById(R.id.bottom_navigation);
 
@@ -157,7 +406,7 @@ public class MainActivity extends AppCompatActivity {
                                 Fragment selectedFragment = null;
                                 switch (item.getItemId()) {
                                     case R.id.action_item1:
-                                        selectedFragment = MapFragment.newInstance(mUsername);
+                                        selectedFragment = MapFragment.newInstance(mUserScore);
                                         break;
                                     case R.id.action_item2:
                                         selectedFragment = WeatherFragment.newInstance();
@@ -173,11 +422,6 @@ public class MainActivity extends AppCompatActivity {
                                 return true;
                             }
                         });
-
-                //Manually displaying the first fragment - one time only
-                FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-                transaction.replace(R.id.frame_layout, MapFragment.newInstance(mUsername));
-                transaction.commit();
 
                 // Runnable scheduled to remind the user to stop for a break
                 mBreakReminder = new Runnable(){
@@ -277,12 +521,20 @@ public class MainActivity extends AppCompatActivity {
             actionBar.hide();
         }
 
-        Intent i = new Intent(this, LoginActivity.class);
-        startActivityForResult(i, REQUEST_USERNAME);
+        mRoadInfo = new RoadInfo();
+
+        mPreviousRoadID = null;
+
+        Intent intent = new Intent(this, LoginActivity.class);
+        startActivityForResult(intent, REQUEST_USERNAME);
     }
 
     public void setUserScoreListener(UserScore.UserScoreListener userScoreListener) {
         mUserScore.setUserScoreListener(userScoreListener);
+    }
+
+    public void setRoadInfoListener(RoadInfo.RoadInfoListener roadInfoListener) {
+        mRoadInfo.setRoadInfoListener(roadInfoListener);
     }
 
     private class ConnectThread extends Thread {
@@ -383,6 +635,9 @@ public class MainActivity extends AppCompatActivity {
                     speedMeasures[measuresNumber] = speedCommand.getMetricSpeed();
                     measuresNumber ++;
 
+                    mUserScore.checkDangerousTime();
+                    mUserScore.checkSpeedLimitExceeded(speedCommand.getMetricSpeed(), mRoadInfo.getMaxSpeed());
+
                     if(measuresNumber >= 3) {
                         mUserScore.checkHardBraking(speedMeasures);
                         measuresNumber = 0;
@@ -428,6 +683,87 @@ public class MainActivity extends AppCompatActivity {
         //Stop the service
         Intent intent = new Intent(this, MyLocationService.class);
         stopService(intent);
+    }
+
+    private boolean isUserScoreChanged() {
+        if(mUserScore != null && mOriginalUserScore != null) {
+            if ((mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()) > 0 ||
+                    (mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount() > 0) ||
+                    (mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount() > 0)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    protected void onPause() {
+        Log.i(TAG, "onPause");
+        super.onPause();
+
+        if(isUserScoreChanged()) {
+            String url = "http://maestronim.altervista.org/Api-Automotive/user-score/update.php";
+            Map<String, String> parameters = new HashMap();
+            parameters.put("hard_braking", String.valueOf(mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()));
+            parameters.put("speed_limit_exceeded", String.valueOf(mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount()));
+            parameters.put("dangerous_time", String.valueOf(mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount()));
+            parameters.put("user_id", mUsername);
+
+            JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(url, new JSONObject(parameters),
+                    new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            try {
+                                if (response.getString("success").equals("yes")) {
+                                    Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
+                                } else {
+                                    String url = "http://maestronim.altervista.org/Api-Automotive/user-score/create.php";
+                                    Map<String, String> parameters = new HashMap();
+                                    parameters.put("hard_braking", String.valueOf(mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()));
+                                    parameters.put("speed_limit_exceeded", String.valueOf(mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount()));
+                                    parameters.put("dangerous_time", String.valueOf(mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount()));
+                                    parameters.put("user_id", mUsername);
+                                    JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(url, new JSONObject(parameters),
+                                            new Response.Listener<JSONObject>() {
+                                                @Override
+                                                public void onResponse(JSONObject response) {
+                                                    try {
+                                                        Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
+                                                    } catch (JSONException e) {
+                                                        e.printStackTrace();
+                                                    } catch (Exception e) {
+                                                        e.printStackTrace();
+                                                    }
+                                                }
+                                            }, new Response.ErrorListener() {
+                                        @Override
+                                        public void onErrorResponse(VolleyError error) {
+                                            error.printStackTrace();
+                                            Toast.makeText(getApplicationContext(), "An error occurred in creating the user info", Toast.LENGTH_LONG).show();
+                                        }
+                                    });
+
+                                    MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
+                                }
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    error.printStackTrace();
+                    Toast.makeText(getApplicationContext(), "An error occurred in updating the user info", Toast.LENGTH_LONG).show();
+                }
+            });
+
+            MySingleton.getInstance(this).addToRequestQueue(jsonObjectRequest);
+        } else {
+            Log.i(TAG, "User score hasn't changed");
+        }
     }
 
     private void checkLocationPermission() {

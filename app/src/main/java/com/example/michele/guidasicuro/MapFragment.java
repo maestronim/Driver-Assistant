@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Parcel;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.location.Location;
@@ -55,17 +56,16 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Location mPreviousLocation;
     private Marker mMarker;
     private MyReceiver mMyReceiver;
-    private AsyncTask mDownloadRoadInfoTask;
     private boolean isFirstMeasure;
-    private boolean mDownloadRoadInfoTaskIsRunning;
     private TextView mSpeedLimitExceededText;
     private TextView mHardBrakingText;
     private TextView mDangerousTimeText;
 
-    public static MapFragment newInstance(String username) {
+    public static MapFragment newInstance(UserScore userScore) {
+        Log.i(TAG, "newInstance");
         MapFragment fragment = new MapFragment();
         Bundle args = new Bundle();
-        args.putString("username", username);
+        args.putParcelable("user_score", userScore);
         fragment.setArguments(args);
         return fragment;
     }
@@ -76,7 +76,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         super.onCreate(savedInstanceState);
 
         isFirstMeasure = true;
-        mDownloadRoadInfoTaskIsRunning = false;
     }
 
     @Override
@@ -105,23 +104,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(
                 mMyReceiver, new IntentFilter("GPSLocationUpdates"));
 
-        ((MainActivity)getActivity()).setUserScoreListener(new UserScore.UserScoreListener() {
-            @Override
-            public void onSpeedLimitExceeded() {
-                Toast.makeText(getActivity(), "Speed limit exceeded", Toast.LENGTH_LONG).show();
-            }
-
-            @Override
-            public void onHardBraking() {
-                Toast.makeText(getActivity(), "Hard braking detected", Toast.LENGTH_LONG).show();
-            }
-
-            @Override
-            public void onDangerousTime() {
-                Toast.makeText(getActivity(), "You are driving on dangerous time", Toast.LENGTH_LONG).show();
-            }
-        });
-
         return view;
     }
 
@@ -143,40 +125,106 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         }
 
         Bundle args = getArguments();
-        String username = args.getString("username");
 
-        String url = "http://maestronim.altervista.org/Api-Automotive/user-score/read.php?user_id=" + username;
+        if(args != null) {
+            UserScore userScore = args.getParcelable("user_score");
+            updateUserScore(userScore.getHardBrakingCount(), userScore.getSpeedLimitExceededCount(),
+                    userScore.getDangerousTimeCount());
+        }
 
-        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
-                new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        try {
-                            if (response.getString("success").equals("yes")) {
-                                JSONObject data = response.getJSONObject("data");
-                                updateUserScore(data.getString("hard_braking"), data.getString("speed_limit_exceeded"),
-                                        data.getString("dangerous_time"));
-                            } else {
-                                Toast.makeText(getActivity(), "You have no records yet", Toast.LENGTH_LONG).show();
-                            }
-                        } catch(JSONException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }, new Response.ErrorListener() {
+        ((MainActivity)getActivity()).setUserScoreListener(new UserScore.UserScoreListener() {
             @Override
-            public void onErrorResponse(VolleyError error) {
-                error.printStackTrace();
+            public void onSpeedLimitExceeded(int speedLimitExceededCount) {
+                Toast.makeText(getActivity(), "Speed limit exceeded", Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onHardBraking(int hardBrakingCount) {
+                Toast.makeText(getActivity(), "Hard braking detected", Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onDangerousTime(int dangerousTimeCount) {
+                Toast.makeText(getActivity(), "You are driving on dangerous time", Toast.LENGTH_LONG).show();
             }
         });
 
-        MySingleton.getInstance(getActivity()).addToRequestQueue(jsonObjectRequest);
+        ((MainActivity)getActivity()).setRoadInfoListener(new RoadInfo.RoadInfoListener() {
+            @Override
+            public void onRoadChanged(RoadInfo roadInfo) {
+                Log.i(TAG, "onRoadChanged");
+                try {
+                    TextView name = (TextView) getView().findViewById(R.id.Name);
+                    TextView highway = (TextView) getView().findViewById(R.id.Highway);
+                    ImageView maxSpeed = (ImageView) getView().findViewById(R.id.MaxSpeed);
+                    // Update UI
+                    if (roadInfo.getName() != null) {
+                        name.setText(roadInfo.getName());
+                    }
+
+                    if (roadInfo.getHighway() != null) {
+                        highway.setText(roadInfo.getHighway());
+                    }
+
+                    switch (roadInfo.getMaxSpeed()) {
+                        case 5:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_5);
+                            break;
+                        case 10:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_10);
+                            break;
+                        case 20:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_20);
+                            break;
+                        case 30:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_30);
+                            break;
+                        case 40:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_40);
+                            break;
+                        case 50:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_50);
+                            break;
+                        case 60:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_60);
+                            break;
+                        case 70:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_70);
+                            break;
+                        case 80:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_80);
+                            break;
+                        case 90:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_90);
+                            break;
+                        case 100:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_100);
+                            break;
+                        case 110:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_110);
+                            break;
+                        case 120:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_120);
+                            break;
+                        case 130:
+                            maxSpeed.setImageResource(R.drawable.speed_limit_130);
+                            break;
+                        default:
+                            //Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
+                    }
+                } catch (NullPointerException e) {
+                    e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
-    private void updateUserScore(String hardBrakingCount, String speedLimitExceededCount, String dangerousTimeCount) {
-        mHardBrakingText.setText(hardBrakingCount);
-        mSpeedLimitExceededText.setText(speedLimitExceededCount);
-        mDangerousTimeText.setText(dangerousTimeCount);
+    private void updateUserScore(int hardBrakingCount, int speedLimitExceededCount, int dangerousTimeCount) {
+        mHardBrakingText.setText(String.valueOf(hardBrakingCount));
+        mSpeedLimitExceededText.setText(String.valueOf(speedLimitExceededCount));
+        mDangerousTimeText.setText(String.valueOf(dangerousTimeCount));
     }
 
     @Override
@@ -192,7 +240,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(mMyReceiver);
-        mDownloadRoadInfoTask.cancel(true);
     }
 
     @Override
@@ -226,247 +273,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mCameraPosition = new CameraPosition.Builder()
                     .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
                     .zoom(17)                   // Sets the zoom
-                    .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), mLocation.getLatitude(), mLocation.getLongitude()))        // Sets the orientation of the camera based on the user direction
+                    .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(),
+                            mLocation.getLatitude(), mLocation.getLongitude()))        // Sets the orientation of the camera based on the user direction
                     .tilt(45)                   // Sets the tilt of the camera to 45 degrees
                     .build();                   // Creates a CameraPosition from the builder
             mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
 
             // Save the previous location
             mPreviousLocation = mLocation;
-
-
-            if(!mDownloadRoadInfoTaskIsRunning) {
-                // Execute the task to download the data
-                mDownloadRoadInfoTask = new DownloadRoadInfo().execute(mLocation);
-                mDownloadRoadInfoTaskIsRunning = true;
-            }
-        }
-
-    }
-
-    // TODO: remove asynctask and perform a request using Volley
-    private class DownloadRoadInfo extends AsyncTask <Location, Void, RoadInfo> {
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
-
-        @Override
-        protected RoadInfo doInBackground(Location... location) {
-            Log.i(TAG, "doInBackground");
-            HttpHandler httpHandler = new HttpHandler();
-            String url = "https://nominatim.openstreetmap.org/reverse?email=michelemaestroni9@gmail.com&format=json&lat=" + location[0].getLatitude() + "&lon=" + location[0].getLongitude() + "&zoom=16";
-            // Make a request to url and get response
-            String jsonStr = httpHandler.makeServiceCall(url);
-            String type="", placeId="",highway="";
-            boolean maxSpeedIsDefined = false, isARoad = false;
-            RoadInfo roadInfo = new RoadInfo();
-
-            if(jsonStr != null) {
-                try {
-                    // Json object containing the place ID
-                    JSONObject placeSearch = new JSONObject(jsonStr);
-                    placeId = placeSearch.getString("osm_id");
-                    type = placeSearch.getString("osm_type");
-                } catch (JSONException e) {
-                    Log.i(TAG, "Couldn't get json from server");
-                    Toast.makeText(getActivity(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
-                }
-
-                url = "http://overpass-api.de/api/interpreter?data=[out:json];" + type + "(" + placeId + ");out;";
-                jsonStr = httpHandler.makeServiceCall(url);
-
-                if (jsonStr != null) {
-                    JSONObject tags = null;
-                    try {
-                        // Json object containing the place information
-                        JSONObject placeInfo = new JSONObject(jsonStr);
-                        JSONArray elements = placeInfo.getJSONArray("elements");
-                        tags = elements.getJSONObject(0).getJSONObject("tags");
-                        Log.i(TAG, "Tags: " + tags);
-                        // Get road info
-                        if (type.equals("way")) {
-                            if (tags.has("highway") || tags.has("junction")) {
-                                isARoad = true;
-                            }
-                        } else if (type.equals("area")) {
-                            if ((tags.has("highway") && tags.has("area"))) {
-                                if (tags.getString("area").equals("yes")) {
-                                    isARoad = true;
-                                }
-                            }
-                        }
-
-                        if (isARoad) {
-                            highway = tags.getString("highway");
-                            roadInfo.setHighway(highway);
-                            if (highway.equals("motorway")) {
-                                roadInfo.setMaxSpeed(130);
-                                maxSpeedIsDefined = true;
-
-                            } else if (roadInfo.getHighway().equals("residential")) {
-                                roadInfo.setMaxSpeed(50);
-                                maxSpeedIsDefined = true;
-                            }
-
-                            if (tags.has("name")) {
-                                roadInfo.setName(tags.getString("name"));
-                            }
-
-                            if (tags.has("maxspeed")) {
-                                roadInfo.setMaxSpeed(Integer.parseInt(tags.getString("maxspeed")));
-                                maxSpeedIsDefined = true;
-                            }
-
-                            if (tags.has("tunnel")) {
-                                roadInfo.setTunnel();
-                            }
-                        }
-                    } catch (JSONException e) {
-                        Log.i(TAG, "Couldn't get json from server");
-                        Toast.makeText(getActivity(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
-                    }
-
-                    if (!maxSpeedIsDefined) {
-                        BoundingBox boundingBox = new BoundingBox();
-                        // TODO: Distance needs to be defined
-                        boundingBox.calculate(mLocation, 500);
-
-                        url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];way[highway=residential](" + boundingBox.getSouthernLimit() + "," + boundingBox.getWesternLimit() + "," + boundingBox.getNorthernLimit() + "," + boundingBox.getEasternLimit() + ");out;";
-                        jsonStr = httpHandler.makeServiceCall(url);
-
-                        try {
-                            if (jsonStr != null) {
-                                // Json object containing the nearby residential roads
-                                JSONObject nearbyRoads = new JSONObject(jsonStr);
-
-                                // The road is urban if there are residential roads within the distance
-                                if (nearbyRoads.getJSONArray("elements").length() > 0) {
-                                    Log.i(TAG, "The road is urban");
-                                    Log.i(TAG, "Highway: " + highway);
-                                    switch (highway) {
-                                        case "trunk":
-                                            roadInfo.setMaxSpeed(70);
-                                            break;
-                                        case "primary":
-                                            roadInfo.setMaxSpeed(50);
-                                            break;
-                                        case "secondary":
-                                            roadInfo.setMaxSpeed(50);
-                                            break;
-                                        case "tertiary":
-                                            roadInfo.setMaxSpeed(50);
-                                            break;
-                                        case "unclassified":
-                                            roadInfo.setMaxSpeed(50);
-                                            break;
-                                    }
-                                } else {
-                                    Log.i(TAG, "The road is interurban");
-                                    Log.i(TAG, "Highway: " + highway);
-                                    switch (highway) {
-                                        case "trunk":
-                                            roadInfo.setMaxSpeed(110);
-                                            break;
-                                        case "primary":
-                                            roadInfo.setMaxSpeed(90);
-                                            break;
-                                        case "secondary":
-                                            roadInfo.setMaxSpeed(90);
-                                            break;
-                                        case "tertiary":
-                                            roadInfo.setMaxSpeed(90);
-                                            break;
-                                        case "unclassified":
-                                            roadInfo.setMaxSpeed(70);
-                                            break;
-                                    }
-                                }
-                            }
-                        } catch (JSONException e) {
-                            Log.i(TAG, "Couldn't get json from server");
-                            Toast.makeText(getActivity(), "Couldn't get json from server", Toast.LENGTH_LONG).show();
-                        }
-                    }
-                }
-            }
-
-            return roadInfo;
-        }
-
-        @Override
-        protected void onPostExecute(RoadInfo roadInfo) {
-            Log.i(TAG, "onPostExecute");
-            super.onPostExecute(roadInfo);
-
-            try {
-                TextView name = (TextView) getView().findViewById(R.id.Name);
-                TextView highway = (TextView) getView().findViewById(R.id.Highway);
-                ImageView maxSpeed = (ImageView) getView().findViewById(R.id.MaxSpeed);
-                // Update UI
-                if (roadInfo.getName() != null) {
-                    name.setText(roadInfo.getName());
-                }
-
-                if (roadInfo.getHighway() != null) {
-                    highway.setText(roadInfo.getHighway());
-                }
-
-                if (roadInfo.isTunnel()) {
-                    // TODO: make the Headlights image blink
-                }
-
-                switch (roadInfo.getMaxSpeed()) {
-                    case 5:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_5);
-                        break;
-                    case 10:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_10);
-                        break;
-                    case 20:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_20);
-                        break;
-                    case 30:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_30);
-                        break;
-                    case 40:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_40);
-                        break;
-                    case 50:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_50);
-                        break;
-                    case 60:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_60);
-                        break;
-                    case 70:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_70);
-                        break;
-                    case 80:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_80);
-                        break;
-                    case 90:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_90);
-                        break;
-                    case 100:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_100);
-                        break;
-                    case 110:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_110);
-                        break;
-                    case 120:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_120);
-                        break;
-                    case 130:
-                        maxSpeed.setImageResource(R.drawable.speed_limit_130);
-                        break;
-                    default:
-                        //Toast.makeText(getApplicationContext(), "Speed limit unknown", Toast.LENGTH_LONG).show();
-                }
-            } catch (NullPointerException e) {
-                Log.i(TAG, e.getMessage());
-            }
-
-            mDownloadRoadInfoTaskIsRunning = false;
         }
     }
 }

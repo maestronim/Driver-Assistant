@@ -10,13 +10,13 @@ public class WeatherInfo {
     private String city;
     private String icon;
     private double temperature;
-    private double minTemperature;
-    private double maxTemperature;
+    private int minTemperature;
+    private int maxTemperature;
     private String description;
     private int humidity;
     private Wind wind;
-    private double sunrise;
-    private double sunset;
+    private long sunrise;
+    private long sunset;
 
     public WeatherInfo() {
         wind = new Wind();
@@ -55,11 +55,11 @@ public class WeatherInfo {
         this.temperature = temperature;
     }
 
-    public void setMinTemperature(double minTemperature) {
+    public void setMinTemperature(int minTemperature) {
         this.minTemperature = minTemperature;
     }
 
-    public void setMaxTemperature(double maxTemperature) {
+    public void setMaxTemperature(int maxTemperature) {
         this.maxTemperature = maxTemperature;
     }
 
@@ -76,11 +76,11 @@ public class WeatherInfo {
         this.wind.setDirection(direction);
     }
 
-    public void setSunrise(double sunrise) {
+    public void setSunrise(long sunrise) {
         this.sunrise = sunrise;
     }
 
-    public void setSunset(double sunset) {
+    public void setSunset(long sunset) {
         this.sunset = sunset;
     }
 
@@ -96,19 +96,19 @@ public class WeatherInfo {
         return temperature;
     }
 
-    public double getMinTemperature() {
+    public int getMinTemperature() {
         return minTemperature;
     }
 
-    public double getMaxTemperature() {
+    public int getMaxTemperature() {
         return maxTemperature;
     }
 
-    public double getSunrise() {
+    public long getSunrise() {
         return sunrise;
     }
 
-    public double getSunset() {
+    public long getSunset() {
         return sunset;
     }
 
