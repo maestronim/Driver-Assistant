@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.PersistableBundle;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
@@ -29,10 +30,12 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
+import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
+import android.widget.Chronometer;
 import android.widget.Toast;
 
 
@@ -55,9 +58,16 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -79,6 +89,11 @@ public class MainActivity extends AppCompatActivity {
     private Location mLocation;
     private RoadInfo mRoadInfo;
     private String mPreviousRoadID;
+    private boolean mShowActionBar;
+    private List<Location> mCoordinates;
+    private Runnable mUploadToServer;
+    private String mPathDate;
+    private Chronometer mChronometer;
 
     public class MyReceiver extends BroadcastReceiver {
         @Override
@@ -122,6 +137,8 @@ public class MainActivity extends AppCompatActivity {
             } else if(intent.getAction().equals("GPSLocationUpdates")) {
                 Bundle b = intent.getBundleExtra("Location");
                 mLocation = (Location) b.getParcelable("Location");
+
+                mCoordinates.add(mLocation);
 
                 Log.i(TAG, "init");
 
@@ -336,51 +353,6 @@ public class MainActivity extends AppCompatActivity {
                     checkLocationPermission();
                 }
 
-                final ProgressDialog progressDialog = new ProgressDialog(MainActivity.this,
-                        ProgressDialog.STYLE_SPINNER);
-                progressDialog.setIndeterminate(true);
-                progressDialog.setMessage("Retrieving user data...");
-                progressDialog.show();
-
-                String url = "http://maestronim.altervista.org/Api-Automotive/user-score/read.php?user_id=" + mUsername;
-
-                JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
-                        new Response.Listener<JSONObject>() {
-                            @Override
-                            public void onResponse(JSONObject response) {
-                                try {
-                                    if (response.getString("success").equals("yes")) {
-                                        JSONObject data = response.getJSONObject("data");
-                                        mUserScore = new UserScore(data.getInt("hard_braking"),
-                                                data.getInt("speed_limit_exceeded"), data.getInt("dangerous_time"));
-
-                                        mOriginalUserScore = new UserScore(mUserScore.getHardBrakingCount(),
-                                                mUserScore.getSpeedLimitExceededCount(), mUserScore.getDangerousTimeCount());
-
-                                        progressDialog.dismiss();
-
-                                        //Manually displaying the first fragment - one time only
-                                        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-                                        transaction.replace(R.id.frame_layout, MapFragment.newInstance(mUserScore));
-                                        transaction.addToBackStack(null);
-                                        transaction.commit();
-                                    } else {
-                                        Toast.makeText(getApplicationContext(), "You have no records yet", Toast.LENGTH_LONG).show();
-                                    }
-                                } catch(JSONException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }, new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        error.printStackTrace();
-                        Toast.makeText(getApplicationContext(), "An error occurred in retrieving the user info", Toast.LENGTH_LONG).show();
-                    }
-                });
-
-                MySingleton.getInstance(this).addToRequestQueue(jsonObjectRequest);
-
                 // BroadcastReceiver
                 mMyReceiver = new MyReceiver();
 
@@ -406,15 +378,41 @@ public class MainActivity extends AppCompatActivity {
                                 Fragment selectedFragment = null;
                                 switch (item.getItemId()) {
                                     case R.id.action_item1:
+                                        mShowActionBar = false;
                                         selectedFragment = MapFragment.newInstance(mUserScore);
                                         break;
                                     case R.id.action_item2:
+                                        mShowActionBar = false;
                                         selectedFragment = WeatherFragment.newInstance();
                                         break;
                                     case R.id.action_item3:
+                                        mShowActionBar = true;
                                         selectedFragment = CarFragment.newInstance();
                                         break;
                                 }
+
+                                if(!mShowActionBar) {
+                                    if(Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN) {
+                                        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                                                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                                    }
+                                    else {
+                                        // Hide the action bar
+                                        android.support.v7.app.ActionBar actionBar = getSupportActionBar();
+                                        actionBar.hide();
+                                    }
+                                } else {
+                                    if(Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN) {
+                                        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN,
+                                                WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+                                    }
+                                    else {
+                                        // Show the action bar
+                                        android.support.v7.app.ActionBar actionBar = getSupportActionBar();
+                                        actionBar.show();
+                                    }
+                                }
+
                                 FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
                                 transaction.replace(R.id.frame_layout, selectedFragment);
                                 transaction.addToBackStack(null);
@@ -431,6 +429,23 @@ public class MainActivity extends AppCompatActivity {
                     }
                 };
                 mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
+
+                createPath();
+                mChronometer.setBase(SystemClock.elapsedRealtime());
+                mChronometer.start();
+
+
+
+                mUploadToServer = new Runnable() {
+                    @Override
+                    public void run() {
+                        updatePath();
+
+                        mHandler.postDelayed(mUploadToServer, 10000);
+                    }
+                };
+
+                mHandler.postDelayed(mUploadToServer, 10000);
             }
         } else  if(requestCode == REQUEST_ENABLE_BT) {
             if (resultCode == RESULT_OK) {
@@ -448,6 +463,112 @@ public class MainActivity extends AppCompatActivity {
                 getApplication().startService(intent);
             }
         }
+    }
+
+    private void createPath() {
+        mPathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
+
+        String url = "http://maestronim.altervista.org/Automotive/Api/user-path/create.php";
+        JSONObject jsonObject = null;
+
+        try {
+            jsonObject = new JSONObject();
+            jsonObject.put("user_id", mUsername);
+            jsonObject.put("path_date", mPathDate);
+        } catch(JSONException e) {
+            e.printStackTrace();
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
+                (url, jsonObject, new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        try {
+                            if(response.getString("success").equals("no")) {
+                                Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                            }
+                        } catch(JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }, new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        error.printStackTrace();
+                        Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                    }
+                });
+
+        MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
+    }
+
+    private void updatePath() {
+        if(mCoordinates.size() > 0) {
+            long elapsedMillis = SystemClock.elapsedRealtime() - mChronometer.getBase();
+            String formattedTime = getDate(elapsedMillis, "hh:mm:ss");
+
+            String url = "http://maestronim.altervista.org/Automotive/Api/user-path/update.php";
+            JSONObject jsonObject = null;
+
+            try {
+                jsonObject = new JSONObject();
+                jsonObject.put("user_id", mUsername);
+                jsonObject.put("path_date", mPathDate);
+                jsonObject.put("dangerous_time", mUserScore.getDangerousTimeCount());
+                jsonObject.put("speed_limit_exceeded", mUserScore.getSpeedLimitExceededCount());
+                jsonObject.put("hard_braking", mUserScore.getHardBrakingCount());
+                jsonObject.put("duration", formattedTime);
+                JSONArray coordinates = new JSONArray();
+                for(Location l : mCoordinates) {
+                    JSONArray coord = new JSONArray();
+                    coord.put(l.getLatitude());
+                    coord.put(l.getLongitude());
+                    coordinates.put(coord);
+                }
+                jsonObject.put("coordinates", coordinates);
+            } catch(JSONException e) {
+                e.printStackTrace();
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+
+            JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
+                    (url, jsonObject, new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            try {
+                                if(response.getString("success").equals("no")) {
+                                    Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                                }
+                            } catch(JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            error.printStackTrace();
+                            Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                        }
+                    });
+
+            MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
+
+            mCoordinates.clear();
+        }
+    }
+
+    private String getDate(long milliSeconds, String dateFormat)
+    {
+        // Create a DateFormatter object for displaying date in specified format.
+        SimpleDateFormat formatter = new SimpleDateFormat(dateFormat);
+
+        // Create a calendar object that will convert the date and time value in milliseconds to date.
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(milliSeconds);
+        return formatter.format(calendar.getTime());
     }
 
     private void queryPairedDevices() {
@@ -525,6 +646,8 @@ public class MainActivity extends AppCompatActivity {
 
         mPreviousRoadID = null;
 
+        mCoordinates = new ArrayList<Location>();
+
         Intent intent = new Intent(this, LoginActivity.class);
         startActivityForResult(intent, REQUEST_USERNAME);
     }
@@ -535,6 +658,10 @@ public class MainActivity extends AppCompatActivity {
 
     public void setRoadInfoListener(RoadInfo.RoadInfoListener roadInfoListener) {
         mRoadInfo.setRoadInfoListener(roadInfoListener);
+    }
+
+    public void setCarParametersListener(CarParameters.CarParametersListener carParametersListener) {
+
     }
 
     private class ConnectThread extends Thread {
@@ -703,49 +830,18 @@ public class MainActivity extends AppCompatActivity {
         super.onPause();
 
         if(isUserScoreChanged()) {
-            String url = "http://maestronim.altervista.org/Api-Automotive/user-score/update.php";
+            String url = "http://maestronim.altervista.org/Api-Automotive/user-score/create.php";
             Map<String, String> parameters = new HashMap();
             parameters.put("hard_braking", String.valueOf(mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()));
             parameters.put("speed_limit_exceeded", String.valueOf(mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount()));
             parameters.put("dangerous_time", String.valueOf(mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount()));
             parameters.put("user_id", mUsername);
-
             JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(url, new JSONObject(parameters),
                     new Response.Listener<JSONObject>() {
                         @Override
                         public void onResponse(JSONObject response) {
                             try {
-                                if (response.getString("success").equals("yes")) {
-                                    Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
-                                } else {
-                                    String url = "http://maestronim.altervista.org/Api-Automotive/user-score/create.php";
-                                    Map<String, String> parameters = new HashMap();
-                                    parameters.put("hard_braking", String.valueOf(mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()));
-                                    parameters.put("speed_limit_exceeded", String.valueOf(mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount()));
-                                    parameters.put("dangerous_time", String.valueOf(mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount()));
-                                    parameters.put("user_id", mUsername);
-                                    JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(url, new JSONObject(parameters),
-                                            new Response.Listener<JSONObject>() {
-                                                @Override
-                                                public void onResponse(JSONObject response) {
-                                                    try {
-                                                        Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
-                                                    } catch (JSONException e) {
-                                                        e.printStackTrace();
-                                                    } catch (Exception e) {
-                                                        e.printStackTrace();
-                                                    }
-                                                }
-                                            }, new Response.ErrorListener() {
-                                        @Override
-                                        public void onErrorResponse(VolleyError error) {
-                                            error.printStackTrace();
-                                            Toast.makeText(getApplicationContext(), "An error occurred in creating the user info", Toast.LENGTH_LONG).show();
-                                        }
-                                    });
-
-                                    MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
-                                }
+                                Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
                             } catch (JSONException e) {
                                 e.printStackTrace();
                             } catch (Exception e) {
@@ -756,11 +852,11 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onErrorResponse(VolleyError error) {
                     error.printStackTrace();
-                    Toast.makeText(getApplicationContext(), "An error occurred in updating the user info", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), "An error occurred in creating the user info", Toast.LENGTH_LONG).show();
                 }
             });
 
-            MySingleton.getInstance(this).addToRequestQueue(jsonObjectRequest);
+            MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
         } else {
             Log.i(TAG, "User score hasn't changed");
         }

@@ -9,14 +9,21 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import com.github.pires.obd.commands.SpeedCommand;
 import com.github.pires.obd.commands.protocol.EchoOffCommand;
@@ -47,6 +54,35 @@ public class CarFragment extends Fragment {
     private static final String TAG = CarFragment.class.getSimpleName();
     private static final int REQUEST_ENABLE_BT = 10;
     private UserScore mUserScore;
+    private ArrayList<CarParameters> mArrayOfCarParameters;
+    private ArrayList<String> mArrayOfCarFaultCodes;
+    private ListView mListView;
+
+    public class CarParametersAdapter extends ArrayAdapter<CarParameters> {
+        public CarParametersAdapter(Context context, ArrayList<CarParameters> users) {
+            super(context, 0, users);
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            // Get the data item for this position
+            CarParameters carParameter = getItem(position);
+            // Check if an existing view is being reused, otherwise inflate the view
+            if (convertView == null) {
+                convertView = LayoutInflater.from(getContext()).inflate(R.layout.parameter_car, parent, false);
+            }
+            // Lookup view for data population
+            TextView parameterName = (TextView) convertView.findViewById(R.id.parameterName);
+            TextView parameterValue = (TextView) convertView.findViewById(R.id.parameterValue);
+            ProgressBar progressBar = (ProgressBar) convertView.findViewById(R.id.determinateBar);
+            // Populate the data into the template view using the data object
+            parameterName.setText(carParameter.getName());
+            parameterValue.setText(carParameter.getValue());
+            progressBar.setMax(carParameter.getMaxValue());
+            // Return the completed view to render on screen
+            return convertView;
+        }
+    }
 
     public static CarFragment newInstance() {
         CarFragment fragment = new CarFragment();
@@ -63,6 +99,17 @@ public class CarFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
+
+        setHasOptionsMenu(true);
+
+        // Construct the data source
+        mArrayOfCarParameters = new ArrayList<CarParameters>();
+        mArrayOfCarFaultCodes = new ArrayList<String>();
+
+        for(int i=0;i<20;i++) {
+            mArrayOfCarParameters.add(new CarParameters("N.d.", "N.d.", 100));
+            mArrayOfCarFaultCodes.add("N.d.");
+        }
     }
 
     @Override
@@ -80,6 +127,24 @@ public class CarFragment extends Fragment {
     }
 
     @Override
+    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        // Create the adapter to convert the array to views
+        CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), mArrayOfCarParameters);
+        // Attach the adapter to a ListView
+        mListView = (ListView) getView().findViewById(R.id.lvParam);
+        mListView.setAdapter(carParametersAdapter);
+
+        ((MainActivity)getActivity()).setCarParametersListener(new CarParameters.CarParametersListener() {
+            @Override
+            public void onCarParametersChanged(ArrayList<CarParameters> arrayOfCarParameters) {
+                // TODO: update changes
+            }
+        });
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
     }
@@ -94,5 +159,31 @@ public class CarFragment extends Fragment {
     public void onDestroy() {
         Log.i(TAG, "onDestroy");
         super.onDestroy();
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+
+        inflater.inflate(R.menu.menu_fragment_car, menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.car_data:
+                CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), mArrayOfCarParameters);
+                mListView.setAdapter(carParametersAdapter);
+                break;
+            case R.id.fault_codes:
+                ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(getActivity(),
+                        android.R.layout.simple_list_item_1, mArrayOfCarFaultCodes);
+                mListView.setAdapter(arrayAdapter);
+                break;
+            default:
+                break;
+        }
+
+        return true;
     }
 }

@@ -27,6 +27,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -63,7 +64,7 @@ public class WeatherFragment extends Fragment{
     private Location mLocation;
     private BroadcastReceiver mMyReceiver;
     private WeatherInfo mWeatherInfo;
-    private boolean mIsFirstTime;
+    private ProgressDialog mProgressDialog;
 
     public static WeatherFragment newInstance() {
         WeatherFragment fragment = new WeatherFragment();
@@ -75,7 +76,11 @@ public class WeatherFragment extends Fragment{
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
 
-        mIsFirstTime = true;
+        mProgressDialog = new ProgressDialog(getActivity(),
+                ProgressDialog.STYLE_SPINNER);
+        mProgressDialog.setIndeterminate(true);
+        mProgressDialog.setMessage("Loading...");
+        mProgressDialog.show();
     }
 
     private int getMainLayoutHeight() {
@@ -178,14 +183,6 @@ public class WeatherFragment extends Fragment{
             Bundle b = intent.getBundleExtra("Location");
             mLocation = (Location) b.getParcelable("Location");
 
-            final ProgressDialog progressDialog = new ProgressDialog(getActivity(),
-                    ProgressDialog.STYLE_SPINNER);
-            if(mIsFirstTime) {
-                progressDialog.setIndeterminate(true);
-                progressDialog.setMessage("Loading...");
-                progressDialog.show();
-            }
-
             String url = "http://api.openweathermap.org/data/2.5/weather?lat=" + mLocation.getLatitude() + "&lon=" + mLocation.getLongitude() + "&units=metric&appid=f4811ea576efe623ab627935c542d838";
 
             JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
@@ -233,11 +230,7 @@ public class WeatherFragment extends Fragment{
                             }
 
                             updateUI();
-
-                            if(mIsFirstTime) {
-                                mIsFirstTime = false;
-                                progressDialog.dismiss();
-                            }
+                            mProgressDialog.dismiss();
                         }
                     }, new Response.ErrorListener() {
                 @Override

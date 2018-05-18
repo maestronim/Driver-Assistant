@@ -3,5 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.example.michele.guidasicuro.CarFragment">>
+    tools:context="com.example.michele.guidasicuro.CarFragment">
+
+    <ListView
+        android:id="@+id/lvParam"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+    </ListView>
 </RelativeLayout>
