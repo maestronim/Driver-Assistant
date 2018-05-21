@@ -5,9 +5,9 @@ import java.util.ArrayList;
 /**
  * Created by Michele on 30/04/2018.
  */
-public class CarParameters {
+public class CarParameter {
     public interface CarParametersListener {
-        public void onCarParametersChanged(ArrayList<CarParameters> arrayOfCarParameters);
+        public void onCarParametersChanged(ArrayList<CarParameter> arrayOfCarParameters);
     }
 
     private String name;
@@ -15,13 +15,13 @@ public class CarParameters {
     private int maxValue;
     private CarParametersListener carParametersListener;
 
-    public CarParameters() {
+    public CarParameter() {
         this.name = "N.d.";
         this.value = "N.d.";
         this.maxValue = 100;
     }
 
-    public CarParameters(String name, String value, int maxValue) {
+    public CarParameter(String name, String value, int maxValue) {
         this.name = name;
         this.value = value;
         this.maxValue = maxValue;
@@ -29,6 +29,10 @@ public class CarParameters {
 
     public void setCarParametersListener(CarParametersListener carParametersListener) {
         this.carParametersListener = carParametersListener;
+    }
+
+    public void onCarParametersChanged(ArrayList<CarParameter> arrayOfCarParameters) {
+        carParametersListener.onCarParametersChanged(arrayOfCarParameters);
     }
 
     public void setName(String name) {

@@ -44,6 +44,7 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.github.pires.obd.commands.SpeedCommand;
+import com.github.pires.obd.commands.engine.RPMCommand;
 import com.github.pires.obd.commands.protocol.EchoOffCommand;
 import com.github.pires.obd.commands.protocol.LineFeedOffCommand;
 import com.github.pires.obd.commands.protocol.SelectProtocolCommand;
@@ -71,6 +72,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -94,6 +97,10 @@ public class MainActivity extends AppCompatActivity {
     private Runnable mUploadToServer;
     private String mPathDate;
     private Chronometer mChronometer;
+    private CarParameter mCarParameter;
+    private ArrayList<CarParameter> mCarParameterArrayList = new ArrayList<>();
+    private String[] mCarParametersList;
+    private Lock mLock = new ReentrantLock();
 
     public class MyReceiver extends BroadcastReceiver {
         @Override
@@ -430,12 +437,7 @@ public class MainActivity extends AppCompatActivity {
                 };
                 mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
 
-                createPath();
-                mChronometer.setBase(SystemClock.elapsedRealtime());
-                mChronometer.start();
-
-
-
+                // Runnable scheduled to upload data to the server
                 mUploadToServer = new Runnable() {
                     @Override
                     public void run() {
@@ -444,8 +446,6 @@ public class MainActivity extends AppCompatActivity {
                         mHandler.postDelayed(mUploadToServer, 10000);
                     }
                 };
-
-                mHandler.postDelayed(mUploadToServer, 10000);
             }
         } else  if(requestCode == REQUEST_ENABLE_BT) {
             if (resultCode == RESULT_OK) {
@@ -468,7 +468,7 @@ public class MainActivity extends AppCompatActivity {
     private void createPath() {
         mPathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
-        String url = "http://maestronim.altervista.org/Automotive/Api/user-path/create.php";
+        String url = "http://maestronim.altervista.org/Guida-Sicuro/api/user-path/create.php";
         JSONObject jsonObject = null;
 
         try {
@@ -509,7 +509,7 @@ public class MainActivity extends AppCompatActivity {
             long elapsedMillis = SystemClock.elapsedRealtime() - mChronometer.getBase();
             String formattedTime = getDate(elapsedMillis, "hh:mm:ss");
 
-            String url = "http://maestronim.altervista.org/Automotive/Api/user-path/update.php";
+            String url = "http://maestronim.altervista.org/Guida-Sicuro/api/user-path/update.php";
             JSONObject jsonObject = null;
 
             try {
@@ -557,6 +557,49 @@ public class MainActivity extends AppCompatActivity {
             MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
 
             mCoordinates.clear();
+        }
+    }
+
+    private void createCarParameters() {
+        if(mCarParametersList.length > 0) {
+            String url = "http://maestronim.altervista.org/Guida-Sicuro/api/car-parameters/create.php";
+            JSONObject jsonObject = null;
+
+            try {
+                mLock.lock();
+                jsonObject = new JSONObject();
+                jsonObject.put("user_id", mUsername);
+                jsonObject.put("path_date", mPathDate);
+                jsonObject.put("speed", mCarParametersList[0]);
+                jsonObject.put("RPM", mCarParametersList[1]);
+                mLock.unlock();
+            } catch(JSONException e) {
+                e.printStackTrace();
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+
+            JsonObjectRequest jsonObjectRequest = new JsonObjectRequest
+                    (url, jsonObject, new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            try {
+                                if(response.getString("success").equals("no")) {
+                                    Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                                }
+                            } catch(JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            error.printStackTrace();
+                            Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                        }
+                    });
+
+            MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
         }
     }
 
@@ -642,7 +685,9 @@ public class MainActivity extends AppCompatActivity {
             actionBar.hide();
         }
 
+        mUserScore = new UserScore();
         mRoadInfo = new RoadInfo();
+        mCarParameter = new CarParameter();
 
         mPreviousRoadID = null;
 
@@ -660,8 +705,8 @@ public class MainActivity extends AppCompatActivity {
         mRoadInfo.setRoadInfoListener(roadInfoListener);
     }
 
-    public void setCarParametersListener(CarParameters.CarParametersListener carParametersListener) {
-
+    public void setCarParametersListener(CarParameter.CarParametersListener carParametersListener) {
+        mCarParameter.setCarParametersListener(carParametersListener);
     }
 
     private class ConnectThread extends Thread {
@@ -679,14 +724,21 @@ public class MainActivity extends AppCompatActivity {
                 // MY_UUID is the app's UUID string, also used in the server code.
                 tmp = device.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));
             } catch (IOException e) {
-                Log.e(TAG, "Socket's create() method failed", e);
+                Log.i(TAG, "Socket's create() method failed", e);
             }
             mmSocket = tmp;
         }
 
         public void run() {
+            Log.i(TAG, "ConnectThread");
             // Cancel discovery because it otherwise slows down the connection.
             mBluetoothAdapter.cancelDiscovery();
+
+            final ProgressDialog progressDialog = new ProgressDialog(MainActivity.this,
+                    ProgressDialog.STYLE_SPINNER);
+            progressDialog.setIndeterminate(true);
+            progressDialog.setMessage("Connecting to " + mmDevice.getName() + "...");
+            progressDialog.show();
 
             try {
                 // Connect to the remote device through the socket. This call blocks
@@ -694,14 +746,18 @@ public class MainActivity extends AppCompatActivity {
                 mmSocket.connect();
             } catch (IOException connectException) {
                 // Unable to connect; close the socket and return.
+                Toast.makeText(getApplicationContext(), "Unable to connect to " + mmDevice.getName(), Toast.LENGTH_LONG).show();
+                Log.i(TAG, "Unable to connect");
                 try {
                     mmSocket.close();
                 } catch (IOException closeException) {
-                    Log.e(TAG, "Could not close the client socket", closeException);
+                    Log.i(TAG, "Could not close the client socket", closeException);
                 }
                 return;
             }
 
+            progressDialog.dismiss();
+            Toast.makeText(getApplicationContext(), "Connected to " + mmDevice.getName(), Toast.LENGTH_LONG).show();
             // The connection attempt succeeded. Perform work associated with
             // the connection in a separate thread.
             new ConnectedThread(mmSocket).run();
@@ -712,7 +768,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 mmSocket.close();
             } catch (IOException e) {
-                Log.e(TAG, "Could not close the client socket", e);
+                Log.i(TAG, "Could not close the client socket", e);
             }
         }
     }
@@ -732,12 +788,12 @@ public class MainActivity extends AppCompatActivity {
             try {
                 tmpIn = socket.getInputStream();
             } catch (IOException e) {
-                Log.e(TAG, "Error occurred when creating input stream", e);
+                Log.i(TAG, "Error occurred when creating input stream", e);
             }
             try {
                 tmpOut = socket.getOutputStream();
             } catch (IOException e) {
-                Log.e(TAG, "Error occurred when creating output stream", e);
+                Log.i(TAG, "Error occurred when creating output stream", e);
             }
 
             mmInStream = tmpIn;
@@ -746,6 +802,14 @@ public class MainActivity extends AppCompatActivity {
 
         public void run() {
             try {
+                // path creation
+                createPath();
+                mChronometer.setBase(SystemClock.elapsedRealtime());
+                mChronometer.start();
+                mHandler.postDelayed(mUploadToServer, 10000);
+
+                mCarParametersList = new String[2];
+
                 // OBD2 initialization
                 new EchoOffCommand().run(mmInStream, mmOutStream);
                 new LineFeedOffCommand().run(mmInStream, mmOutStream);
@@ -753,12 +817,29 @@ public class MainActivity extends AppCompatActivity {
                 new SelectProtocolCommand(ObdProtocols.AUTO).run(mmInStream, mmOutStream);
 
                 SpeedCommand speedCommand = new SpeedCommand();
+                RPMCommand rpmCommand = new RPMCommand();
                 int measuresNumber = 0;
                 int[] speedMeasures = new int[3];
+                ArrayList<CarParameter> carParameterArrayList = new ArrayList<>();
 
                 while(!Thread.currentThread().isInterrupted()) {
                     speedCommand.run(mmInStream, mmOutStream);
+                    rpmCommand.run(mmInStream, mmOutStream);
                     Log.i(TAG,"Speed: " + speedCommand.getFormattedResult());
+                    Log.i(TAG,"RPM: " + rpmCommand.getFormattedResult());
+
+                    carParameterArrayList.add(new CarParameter("Speed", speedCommand.getFormattedResult(), 220));
+                    carParameterArrayList.add(new CarParameter("RPM", rpmCommand.getFormattedResult(), 10000));
+
+                    mCarParameter.onCarParametersChanged(carParameterArrayList);
+                    carParameterArrayList.clear();
+
+                    if(mLock.tryLock()) {
+                        mCarParametersList[0] = speedCommand.getCalculatedResult();
+                        mCarParametersList[1] = rpmCommand.getCalculatedResult();
+                        mLock.unlock();
+                    }
+
                     speedMeasures[measuresNumber] = speedCommand.getMetricSpeed();
                     measuresNumber ++;
 
@@ -771,8 +852,9 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             } catch(Exception e) {
+                e.printStackTrace();
                 Log.i(TAG, "Error occurred when retrieving data from the ELM327 device");
-                this.cancel();
+                //this.cancel();
             }
         }
 
@@ -781,8 +863,15 @@ public class MainActivity extends AppCompatActivity {
             try {
                 mmSocket.close();
             } catch (IOException e) {
-                Log.e(TAG, "Could not close the connect socket", e);
+                Log.i(TAG, "Could not close the connect socket", e);
             }
+        }
+    }
+
+    private class AddCarParametersThread extends Thread {
+        @Override
+        public void run() {
+
         }
     }
 
@@ -800,7 +889,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onStop() {
-        // TODO: upload data to the server
         Log.i(TAG, "onStop");
         super.onStop();
         mHandler.removeCallbacks(mBreakReminder);
@@ -828,38 +916,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         Log.i(TAG, "onPause");
         super.onPause();
-
-        if(isUserScoreChanged()) {
-            String url = "http://maestronim.altervista.org/Api-Automotive/user-score/create.php";
-            Map<String, String> parameters = new HashMap();
-            parameters.put("hard_braking", String.valueOf(mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()));
-            parameters.put("speed_limit_exceeded", String.valueOf(mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount()));
-            parameters.put("dangerous_time", String.valueOf(mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount()));
-            parameters.put("user_id", mUsername);
-            JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(url, new JSONObject(parameters),
-                    new Response.Listener<JSONObject>() {
-                        @Override
-                        public void onResponse(JSONObject response) {
-                            try {
-                                Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }, new Response.ErrorListener() {
-                @Override
-                public void onErrorResponse(VolleyError error) {
-                    error.printStackTrace();
-                    Toast.makeText(getApplicationContext(), "An error occurred in creating the user info", Toast.LENGTH_LONG).show();
-                }
-            });
-
-            MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
-        } else {
-            Log.i(TAG, "User score hasn't changed");
-        }
     }
 
     private void checkLocationPermission() {
