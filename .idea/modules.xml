@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/GuidaSicuro.iml" filepath="$PROJECT_DIR$/GuidaSicuro.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Guida-Sicuro.iml" filepath="$PROJECT_DIR$/Guida-Sicuro.iml" />
+      <module fileurl="file://C:\Users\Michele\AndroidStudioProjects\Guida-Sicuro\GuidaSicuro.iml" filepath="C:\Users\Michele\AndroidStudioProjects\Guida-Sicuro\GuidaSicuro.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
   </component>

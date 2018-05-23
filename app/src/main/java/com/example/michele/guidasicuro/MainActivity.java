@@ -101,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<CarParameter> mCarParameterArrayList = new ArrayList<>();
     private String[] mCarParametersList;
     private Lock mLock = new ReentrantLock();
+    private boolean mIsTimeDangerousChecked = false;
 
     public class MyReceiver extends BroadcastReceiver {
         @Override
@@ -428,6 +429,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                         });
 
+                bottomNavigationView.setSelectedItemId(R.id.action_item1);
+
                 // Runnable scheduled to remind the user to stop for a break
                 mBreakReminder = new Runnable(){
                     public void run() {
@@ -442,7 +445,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         updatePath();
-
+                        createCarParameters();
                         mHandler.postDelayed(mUploadToServer, 10000);
                     }
                 };
@@ -487,7 +490,9 @@ public class MainActivity extends AppCompatActivity {
                     public void onResponse(JSONObject response) {
                         try {
                             if(response.getString("success").equals("no")) {
-                                Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                                Toast.makeText(getApplicationContext(), "An error occurred in creating the path", Toast.LENGTH_LONG).show();
+                            } else {
+                                Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
                             }
                         } catch(JSONException e) {
                             e.printStackTrace();
@@ -497,7 +502,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onErrorResponse(VolleyError error) {
                         error.printStackTrace();
-                        Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                        Toast.makeText(getApplicationContext(), "An error occurred in creating the path", Toast.LENGTH_LONG).show();
                     }
                 });
 
@@ -540,7 +545,7 @@ public class MainActivity extends AppCompatActivity {
                         public void onResponse(JSONObject response) {
                             try {
                                 if(response.getString("success").equals("no")) {
-                                    Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                                    Toast.makeText(getApplicationContext(), "An error occurred in updating the path", Toast.LENGTH_LONG).show();
                                 }
                             } catch(JSONException e) {
                                 e.printStackTrace();
@@ -550,7 +555,7 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onErrorResponse(VolleyError error) {
                             error.printStackTrace();
-                            Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                            Toast.makeText(getApplicationContext(), "An error occurred in updating the path", Toast.LENGTH_LONG).show();
                         }
                     });
 
@@ -585,7 +590,7 @@ public class MainActivity extends AppCompatActivity {
                         public void onResponse(JSONObject response) {
                             try {
                                 if(response.getString("success").equals("no")) {
-                                    Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                                    Toast.makeText(getApplicationContext(), "An error occurred in uploading the car's parameters to the server", Toast.LENGTH_LONG).show();
                                 }
                             } catch(JSONException e) {
                                 e.printStackTrace();
@@ -595,7 +600,7 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onErrorResponse(VolleyError error) {
                             error.printStackTrace();
-                            Toast.makeText(getApplicationContext(), "An error occurred in uploading data to the server", Toast.LENGTH_LONG).show();
+                            Toast.makeText(getApplicationContext(), "An error occurred in uploading the car's parameters to the server", Toast.LENGTH_LONG).show();
                         }
                     });
 
@@ -842,8 +847,13 @@ public class MainActivity extends AppCompatActivity {
 
                     speedMeasures[measuresNumber] = speedCommand.getMetricSpeed();
                     measuresNumber ++;
-
-                    mUserScore.checkDangerousTime();
+                    
+                    if(!mIsTimeDangerousChecked) {
+                        if (mUserScore.checkDangerousTime()) {
+                            mIsTimeDangerousChecked = true;
+                        }
+                    }
+                    
                     mUserScore.checkSpeedLimitExceeded(speedCommand.getMetricSpeed(), mRoadInfo.getMaxSpeed());
 
                     if(measuresNumber >= 3) {

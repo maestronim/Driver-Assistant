@@ -15,25 +15,25 @@ public class UserScore implements Parcelable{
     public interface UserScoreListener {
         public void onSpeedLimitExceeded(int speedLimitExceededCount);
         public void onHardBraking(int hardBrakingCount);
-        public void onDangerousTime(int dangerousTimeCount);
+        public void onDangerousTime(int isDangerousTime);
     }
 
     private int mHardBrakingCount;
     private int mSpeedLimitExceededCount;
-    private int mDangerousTimeCount;
+    private int mIsDangerousTime;
     private UserScoreListener mUserScoreListener;
 
     public UserScore() {
         mUserScoreListener = null;
         mHardBrakingCount = 0;
         mSpeedLimitExceededCount = 0;
-        mDangerousTimeCount = 0;
+        mIsDangerousTime = 0;
     }
 
-    public UserScore(int hardBrakingCount, int speedLimitExceededCount, int dangerousTimeCount) {
+    public UserScore(int hardBrakingCount, int speedLimitExceededCount, int isDangerousTime) {
         this.mHardBrakingCount = hardBrakingCount;
         this.mSpeedLimitExceededCount = speedLimitExceededCount;
-        this.mDangerousTimeCount = dangerousTimeCount;
+        this.mIsDangerousTime = isDangerousTime;
     }
 
     public void setHardBrakingCount(int hardBrakingCount) {
@@ -44,8 +44,8 @@ public class UserScore implements Parcelable{
         this.mSpeedLimitExceededCount = speedLimitExceededCount;
     }
 
-    public void setDangerousTimeCount(int dangerousTimeCount) {
-        this.mDangerousTimeCount = dangerousTimeCount;
+    public void setDangerousTimeCount(int isDangerousTime) {
+        this.mIsDangerousTime = isDangerousTime;
     }
 
     public void setUserScoreListener(UserScoreListener listener) {
@@ -61,7 +61,7 @@ public class UserScore implements Parcelable{
     }
 
     public int getDangerousTimeCount() {
-        return this.mDangerousTimeCount;
+        return this.mIsDangerousTime;
     }
 
     public void checkHardBraking(int[] speedMeasures) {
@@ -75,14 +75,17 @@ public class UserScore implements Parcelable{
         }
     }
 
-    public void checkDangerousTime() {
+    public boolean checkDangerousTime() {
         Calendar rightNow = Calendar.getInstance();
         int currentHour = rightNow.get(Calendar.HOUR_OF_DAY);
 
         if(currentHour >= 22 || currentHour <= 6) {
-            mDangerousTimeCount += 1;
-            mUserScoreListener.onDangerousTime(mDangerousTimeCount);
+            mIsDangerousTime = 1;
+            mUserScoreListener.onDangerousTime(mIsDangerousTime);
+            return true;
         }
+
+        return false;
     }
 
     public void checkSpeedLimitExceeded(int speed, int speedLimit) {
@@ -96,14 +99,14 @@ public class UserScore implements Parcelable{
     public void writeToParcel(Parcel dest, int flags){
         dest.writeInt(mHardBrakingCount);
         dest.writeInt(mSpeedLimitExceededCount);
-        dest.writeInt(mDangerousTimeCount);
+        dest.writeInt(mIsDangerousTime);
     }
 
     //constructor used for parcel
     public UserScore(Parcel parcel){
         this.mHardBrakingCount = parcel.readInt();
         this.mSpeedLimitExceededCount = parcel.readInt();
-        this.mDangerousTimeCount = parcel.readInt();
+        this.mIsDangerousTime = parcel.readInt();
     }
 
     //creator - used when un-parceling our parcle (creating the object)

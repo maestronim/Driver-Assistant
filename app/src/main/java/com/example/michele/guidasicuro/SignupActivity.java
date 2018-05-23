@@ -2,10 +2,12 @@ package com.example.michele.guidasicuro;
 
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -39,6 +41,16 @@ public class SignupActivity extends AppCompatActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_signup);
+
+        if(Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN) {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }
+        else {
+            // Hide the action bar
+            android.support.v7.app.ActionBar actionBar = getSupportActionBar();
+            actionBar.hide();
+        }
 
         mUsernameText = findViewById(R.id.input_username);
         mEmailText = findViewById(R.id.input_email);

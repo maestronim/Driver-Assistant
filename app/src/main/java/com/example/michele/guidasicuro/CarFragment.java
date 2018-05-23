@@ -47,8 +47,6 @@ import static android.app.Activity.RESULT_OK;
  * Created by Michele on 14/03/2018.
  */
 
-// TODO: Get the data from OBD2 and display that in the form of charts or simple values
-
 public class CarFragment extends Fragment {
     private String mDeviceAddress;
     private static final String TAG = CarFragment.class.getSimpleName();
@@ -79,7 +77,7 @@ public class CarFragment extends Fragment {
             parameterName.setText(carParameter.getName());
             parameterValue.setText(carParameter.getValue());
             progressBar.setMax(carParameter.getMaxValue());
-            progressBar.setProgress(Integer.valueOf(carParameter.getValue().replaceAll("\\D+","")));
+            //progressBar.setProgress(Integer.valueOf(carParameter.getValue().replaceAll("\\D+","")));
             // Return the completed view to render on screen
             return convertView;
         }
@@ -107,8 +105,8 @@ public class CarFragment extends Fragment {
         mArrayOfCarParameters = new ArrayList<CarParameter>();
         mArrayOfCarFaultCodes = new ArrayList<String>();
 
-        for(int i=0;i<20;i++) {
-            mArrayOfCarParameters.add(new CarParameter("N.d.", "N.d.", 100));
+        for(int i=0;i<18;i++) {
+            mArrayOfCarParameters.add(new CarParameter("n.d.","n.d.", 100));
             mArrayOfCarFaultCodes.add("N.d.");
         }
     }
@@ -131,8 +129,8 @@ public class CarFragment extends Fragment {
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Create the adapter to convert the array to views
         CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), mArrayOfCarParameters);
+
         // Attach the adapter to a ListView
         mListView = (ListView) getView().findViewById(R.id.lvParam);
         mListView.setAdapter(carParametersAdapter);
@@ -140,7 +138,9 @@ public class CarFragment extends Fragment {
         ((MainActivity)getActivity()).setCarParametersListener(new CarParameter.CarParametersListener() {
             @Override
             public void onCarParametersChanged(ArrayList<CarParameter> arrayOfCarParameters) {
-                // TODO: update changes
+                CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), arrayOfCarParameters);
+                mListView.setAdapter(carParametersAdapter);
+                mArrayOfCarParameters = arrayOfCarParameters;
             }
         });
     }

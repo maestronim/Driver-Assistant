@@ -81,6 +81,7 @@ public class MyLocationService extends Service implements GoogleApiClient.Connec
 
         mLocationRequest = LocationRequest.create();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        //mLocationRequest.setSmallestDisplacement(10);
         mLocationRequest.setInterval(2000); // Update location every second
         mLocationRequest.setFastestInterval(1000);
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
