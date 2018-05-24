@@ -273,7 +273,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mCameraPosition = new CameraPosition.Builder()
                     .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
                     .zoom(17)                   // Sets the zoom
-                    .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(),
+                    .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), //T0DO: calculate bearing only when the distance between coordinates is long enough
                             mLocation.getLatitude(), mLocation.getLongitude()))        // Sets the orientation of the camera based on the user direction
                     .tilt(45)                   // Sets the tilt of the camera to 45 degrees
                     .build();                   // Creates a CameraPosition from the builder
