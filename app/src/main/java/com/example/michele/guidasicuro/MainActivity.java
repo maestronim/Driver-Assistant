@@ -145,7 +145,8 @@ public class MainActivity extends AppCompatActivity {
             } else if(intent.getAction().equals("GPSLocationUpdates")) {
                 Bundle b = intent.getBundleExtra("Location");
                 mLocation = (Location) b.getParcelable("Location");
-
+                
+                //TODO: add coordinates only when the distance between coordinates is long enough
                 mCoordinates.add(mLocation);
 
                 Log.i(TAG, "init");
