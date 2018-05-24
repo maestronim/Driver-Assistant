@@ -145,9 +145,14 @@ public class MainActivity extends AppCompatActivity {
             } else if(intent.getAction().equals("GPSLocationUpdates")) {
                 Bundle b = intent.getBundleExtra("Location");
                 mLocation = (Location) b.getParcelable("Location");
-                
-                //TODO: add coordinates only when the distance between coordinates is long enough
-                mCoordinates.add(mLocation);
+
+                if(mCoordinates.size() > 0) {
+                    if(!mCoordinates.get(mCoordinates.size() - 1).equals(mLocation)) {
+                        mCoordinates.add(mLocation);
+                    }
+                } else {
+                    mCoordinates.add(mLocation);
+                }
 
                 Log.i(TAG, "init");
 
@@ -876,13 +881,6 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 Log.i(TAG, "Could not close the connect socket", e);
             }
-        }
-    }
-
-    private class AddCarParametersThread extends Thread {
-        @Override
-        public void run() {
-
         }
     }
 

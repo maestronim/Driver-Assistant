@@ -22,12 +22,14 @@ public class UserScore implements Parcelable{
     private int mSpeedLimitExceededCount;
     private int mIsDangerousTime;
     private UserScoreListener mUserScoreListener;
+    private int mPrecSpeed;
 
     public UserScore() {
         mUserScoreListener = null;
         mHardBrakingCount = 0;
         mSpeedLimitExceededCount = 0;
         mIsDangerousTime = 0;
+        mPrecSpeed = 0;
     }
 
     public UserScore(int hardBrakingCount, int speedLimitExceededCount, int isDangerousTime) {
@@ -90,9 +92,12 @@ public class UserScore implements Parcelable{
 
     public void checkSpeedLimitExceeded(int speed, int speedLimit) {
         if(speed > speedLimit) {
-            mSpeedLimitExceededCount += 1;
-            mUserScoreListener.onSpeedLimitExceeded(mSpeedLimitExceededCount);
+            if(mPrecSpeed < speedLimit) {
+                mSpeedLimitExceededCount += 1;
+                mUserScoreListener.onSpeedLimitExceeded(mSpeedLimitExceededCount);
+            }
         }
+        mPrecSpeed = speed;
     }
 
     //write object values to parcel for storage

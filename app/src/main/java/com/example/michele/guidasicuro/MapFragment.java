@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.os.Parcel;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
@@ -28,20 +29,26 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.github.aakira.expandablelayout.ExpandableWeightLayout;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 /**
  * Created by Michele on 14/03/2018.
@@ -56,10 +63,13 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Location mPreviousLocation;
     private Marker mMarker;
     private MyReceiver mMyReceiver;
-    private boolean isFirstMeasure;
+    private boolean mIsFirstMeasure;
     private TextView mSpeedLimitExceededText;
     private TextView mHardBrakingText;
     private TextView mDangerousTimeText;
+    private Polyline mPolyline;
+    private float mPreviousBearing;
+    private List<Location> mCoordinates;
 
     public static MapFragment newInstance(UserScore userScore) {
         Log.i(TAG, "newInstance");
@@ -75,7 +85,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
 
-        isFirstMeasure = true;
+        mIsFirstMeasure = true;
     }
 
     @Override
@@ -245,10 +255,19 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onMapReady(GoogleMap map) {
         mMap = map;
+    }
 
-        // Place a marker on the map
-        MarkerOptions markerOptions = new MarkerOptions().position(new LatLng(45.698264, 9.67727));
-        mMarker = mMap.addMarker(markerOptions);
+    private void moveToBounds(Polyline p)
+    {
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        List<LatLng> arr = p.getPoints();
+        for(int i = 0; i < arr.size();i++){
+            builder.include(arr.get(i));
+        }
+        LatLngBounds bounds = builder.build();
+        int padding = 40; // offset from edges of the map in pixels
+        CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, padding);
+        mMap.animateCamera(cu);
     }
 
     public class MyReceiver extends BroadcastReceiver {
@@ -257,32 +276,46 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             Bundle b = intent.getBundleExtra("Location");
             mLocation = (Location) b.getParcelable("Location");
 
-            if(isFirstMeasure) {
+            if(!mIsFirstMeasure) {
+                if(!mPreviousLocation.equals(mLocation)) {
+                    List<LatLng> points = mPolyline.getPoints();
+                    points.add(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
+                    mPolyline.setPoints(points);
+
+                    moveToBounds(mPolyline);
+
+                    float bearing = 0;
+
+                    if(mLocation.distanceTo(mPreviousLocation) > 10) {
+                        bearing = (float) Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(),
+                                mLocation.getLatitude(), mLocation.getLongitude());
+                        mPreviousBearing = bearing;
+                    } else {
+                        bearing = mPreviousBearing;
+                    }
+
+                    // Construct a CameraPosition focusing on the user position and animate the camera to that position.
+                    mCameraPosition = new CameraPosition.Builder()
+                            .bearing(bearing)        // Sets the orientation of the camera based on the user direction
+                            .tilt(45)                   // Sets the tilt of the camera to 45 degrees
+                            .build();                   // Creates a CameraPosition from the builder
+                    mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
+
+                    // Change the marker position
+                    mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
+
+                    // Save the previous location
+                    mPreviousLocation = mLocation;
+                }
+            } else {
+                mIsFirstMeasure = false;
                 mPreviousLocation = mLocation;
-                isFirstMeasure = false;
+                mPolyline = mMap.addPolyline(new PolylineOptions().width(5).color(Color.BLUE).add(new LatLng(mLocation.getLatitude(), mLocation.getLongitude())));
+
+                // Place a marker on the map
+                MarkerOptions markerOptions = new MarkerOptions().position(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
+                mMarker = mMap.addMarker(markerOptions);
             }
-
-            Log.i(TAG, "Latitude: " + mLocation.getLatitude());
-            Log.i(TAG, "Longitude: " + mLocation.getLongitude());
-            Log.i(TAG, "Speed : " + mLocation.getSpeed());
-
-            // Change the marker position
-            mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
-
-            // Construct a CameraPosition focusing on the user position and animate the camera to that position.
-            mCameraPosition = new CameraPosition.Builder()
-                    .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
-                    .zoom(17)                   // Sets the zoom
-                    .bearing((float)Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(), //T0DO: calculate bearing only when the distance between coordinates is long enough
-                            mLocation.getLatitude(), mLocation.getLongitude()))        // Sets the orientation of the camera based on the user direction
-                    .tilt(45)                   // Sets the tilt of the camera to 45 degrees
-                    .build();                   // Creates a CameraPosition from the builder
-            mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
-            
-            //TODO: add polyline
-
-            // Save the previous location
-            mPreviousLocation = mLocation;
         }
     }
 }
