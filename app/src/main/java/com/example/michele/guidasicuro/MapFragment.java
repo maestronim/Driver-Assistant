@@ -278,6 +278,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                     .tilt(45)                   // Sets the tilt of the camera to 45 degrees
                     .build();                   // Creates a CameraPosition from the builder
             mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
+            
+            //TODO: add polyline
 
             // Save the previous location
             mPreviousLocation = mLocation;
