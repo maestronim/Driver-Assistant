@@ -276,46 +276,39 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             Bundle b = intent.getBundleExtra("Location");
             mLocation = (Location) b.getParcelable("Location");
 
-            if(!mIsFirstMeasure) {
-                if(!mPreviousLocation.equals(mLocation)) {
-                    List<LatLng> points = mPolyline.getPoints();
-                    points.add(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
-                    mPolyline.setPoints(points);
-
-                    moveToBounds(mPolyline);
-
-                    float bearing = 0;
-
-                    if(mLocation.distanceTo(mPreviousLocation) > 10) {
-                        bearing = (float) Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(),
-                                mLocation.getLatitude(), mLocation.getLongitude());
-                        mPreviousBearing = bearing;
-                    } else {
-                        bearing = mPreviousBearing;
-                    }
-
-                    // Construct a CameraPosition focusing on the user position and animate the camera to that position.
-                    mCameraPosition = new CameraPosition.Builder()
-                            .bearing(bearing)        // Sets the orientation of the camera based on the user direction
-                            .tilt(45)                   // Sets the tilt of the camera to 45 degrees
-                            .build();                   // Creates a CameraPosition from the builder
-                    mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
-
-                    // Change the marker position
-                    mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
-
-                    // Save the previous location
-                    mPreviousLocation = mLocation;
-                }
-            } else {
-                mIsFirstMeasure = false;
+            if(mIsFirstMeasure) {
                 mPreviousLocation = mLocation;
-                mPolyline = mMap.addPolyline(new PolylineOptions().width(5).color(Color.BLUE).add(new LatLng(mLocation.getLatitude(), mLocation.getLongitude())));
+                mIsFirstMeasure = false;
 
                 // Place a marker on the map
                 MarkerOptions markerOptions = new MarkerOptions().position(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
                 mMarker = mMap.addMarker(markerOptions);
             }
+
+            float bearing = 0;
+
+            if (mLocation.distanceTo(mPreviousLocation) > 10) {
+                bearing = (float) Bearing.getBearing(mPreviousLocation.getLatitude(), mPreviousLocation.getLongitude(),
+                        mLocation.getLatitude(), mLocation.getLongitude());
+                mPreviousBearing = bearing;
+            } else {
+                bearing = mPreviousBearing;
+            }
+
+            // Change the marker position
+            mMarker.setPosition(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()));
+
+            // Construct a CameraPosition focusing on the user position and animate the camera to that position.
+            mCameraPosition = new CameraPosition.Builder()
+                    .target(new LatLng(mLocation.getLatitude(), mLocation.getLongitude()))      // Sets the center of the map to user position
+                    .zoom(17)                   // Sets the zoom
+                    .bearing(bearing)        // Sets the orientation of the camera based on the user direction
+                    .tilt(45)                   // Sets the tilt of the camera to 45 degrees
+                    .build();                   // Creates a CameraPosition from the builder
+            mMap.animateCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
+
+            // Save the previous location
+            mPreviousLocation = mLocation;
         }
     }
 }
