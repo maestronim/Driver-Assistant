@@ -56,8 +56,15 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -103,6 +110,38 @@ public class MainActivity extends AppCompatActivity {
     private Lock mLock = new ReentrantLock();
     private boolean mIsTimeDangerousChecked = false;
 
+    private void saveDeviceAddress(Context context, BluetoothDevice bluetoothDevice) {
+        try {
+            FileOutputStream outputStream = context.openFileOutput("deviceAddress", Context.MODE_PRIVATE);
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+
+            objectOutputStream.writeObject(bluetoothDevice);
+
+            objectOutputStream.close();
+            outputStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private BluetoothDevice getDeviceAddress(Context context) {
+        try {
+            FileInputStream fileInputStream = context.openFileInput("deviceAddress");
+            ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
+
+            BluetoothDevice bluetoothDevice = (BluetoothDevice) objectInputStream.readObject();
+
+            objectInputStream.close();
+            fileInputStream.close();
+
+            return bluetoothDevice;
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
     public class MyReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -113,10 +152,8 @@ public class MainActivity extends AppCompatActivity {
                 // Discovery has found a device. Get the BluetoothDevice
                 // object and its info from the Intent.
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                String deviceName = device.getName();
-                String deviceHardwareAddress = device.getAddress(); // MAC address
-                mDeviceAddress = device.getAddress(); // MAC address
-                // TODO save deviceAddress
+
+                saveDeviceAddress(getApplicationContext(), device);
 
                 new ConnectThread(device).run();
             } else if(intent.getAction().equals("setLocationSettings")){
@@ -170,17 +207,15 @@ public class MainActivity extends AppCompatActivity {
                                     e.printStackTrace();
                                 }
 
-                                boolean isSameRoad = false, isFirstRequest = false;
+                                boolean isSameRoad = false;
 
-                                if(mPreviousRoadID == null) {
-                                    isFirstRequest = true;
-                                } else {
-                                    if(mRoadInfo.getID().equals(mPreviousRoadID)) {
+                                if(mPreviousRoadID != null) {
+                                    if (mRoadInfo.getID().equals(mPreviousRoadID)) {
                                         isSameRoad = true;
                                     }
                                 }
 
-                                if(!isSameRoad || isFirstRequest) {
+                                if(!isSameRoad) {
                                     mPreviousRoadID = mRoadInfo.getID();
 
                                     Log.i(TAG, "not same road");
@@ -378,7 +413,12 @@ public class MainActivity extends AppCompatActivity {
                         Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
                         startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
                     } else {
-                        queryPairedDevices();
+                        BluetoothDevice bluetoothDevice = getDeviceAddress(getApplicationContext());
+                        if(bluetoothDevice != null) {
+                            new ConnectThread(bluetoothDevice).run();
+                        } else {
+                            queryPairedDevices();
+                        }
                     }
                 }
 
@@ -459,8 +499,12 @@ public class MainActivity extends AppCompatActivity {
         } else  if(requestCode == REQUEST_ENABLE_BT) {
             if (resultCode == RESULT_OK) {
                 Log.i(TAG, "Bluetooth enabled");
-                queryPairedDevices();
-
+                BluetoothDevice bluetoothDevice = getDeviceAddress(getApplicationContext());
+                if(bluetoothDevice != null) {
+                    new ConnectThread(bluetoothDevice).run();
+                } else {
+                    queryPairedDevices();
+                }
             } else if(resultCode == RESULT_CANCELED) {
                 Log.i(TAG, "Bluetooth not enabled");
                 // Register BroadcastReceiver to receive the data from the service
@@ -648,8 +692,8 @@ public class MainActivity extends AppCompatActivity {
                 public void onClick(DialogInterface dialog, int which) {
                     dialog.dismiss();
                     int position = ((AlertDialog) dialog).getListView().getCheckedItemPosition();
-                    mDeviceAddress = devices.get(position);
-                    // TODO save deviceAddress
+
+                    saveDeviceAddress(getApplicationContext(), (BluetoothDevice)pairedDevices.toArray()[position]);
 
                     new ConnectThread((BluetoothDevice)pairedDevices.toArray()[position]).run();
 
@@ -757,6 +801,7 @@ public class MainActivity extends AppCompatActivity {
                 mmSocket.connect();
             } catch (IOException connectException) {
                 // Unable to connect; close the socket and return.
+                progressDialog.dismiss();
                 Toast.makeText(getApplicationContext(), "Unable to connect to " + mmDevice.getName(), Toast.LENGTH_LONG).show();
                 Log.i(TAG, "Unable to connect");
                 try {
@@ -767,10 +812,10 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            progressDialog.dismiss();
-            Toast.makeText(getApplicationContext(), "Connected to " + mmDevice.getName(), Toast.LENGTH_LONG).show();
             // The connection attempt succeeded. Perform work associated with
             // the connection in a separate thread.
+            progressDialog.dismiss();
+            Toast.makeText(getApplicationContext(), "Connected to " + mmDevice.getName(), Toast.LENGTH_LONG).show();
             new ConnectedThread(mmSocket).run();
         }
 
