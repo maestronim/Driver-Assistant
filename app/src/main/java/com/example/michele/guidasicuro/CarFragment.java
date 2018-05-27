@@ -37,6 +37,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
 
@@ -55,6 +56,7 @@ public class CarFragment extends Fragment {
     private ArrayList<CarParameter> mArrayOfCarParameters;
     private ArrayList<String> mArrayOfCarFaultCodes;
     private ListView mListView;
+    private CarParametersAdapter mCarParametersAdapter;
 
     public class CarParametersAdapter extends ArrayAdapter<CarParameter> {
         public CarParametersAdapter(Context context, ArrayList<CarParameter> users) {
@@ -75,14 +77,9 @@ public class CarFragment extends Fragment {
             ProgressBar progressBar = (ProgressBar) convertView.findViewById(R.id.determinateBar);
             // Populate the data into the template view using the data object
             parameterName.setText(carParameter.getName());
-            parameterValue.setText(carParameter.getValue());
+            parameterValue.setText(carParameter.getValue() + " " + carParameter.getUnit());
+            progressBar.setProgress(Integer.valueOf(carParameter.getValue()));
             progressBar.setMax(carParameter.getMaxValue());
-
-            try {
-                progressBar.setProgress(Integer.valueOf(carParameter.getValue().replaceAll("\\D+", "")));
-            } catch(Exception e) {
-                e.printStackTrace();
-            }
             // Return the completed view to render on screen
             return convertView;
         }
@@ -111,7 +108,7 @@ public class CarFragment extends Fragment {
         mArrayOfCarFaultCodes = new ArrayList<String>();
 
         for(int i=0;i<18;i++) {
-            mArrayOfCarParameters.add(new CarParameter("n.d.","n.d.", 100));
+            mArrayOfCarParameters.add(new CarParameter("n.d.","n.d.", "n.d.", 100));
             mArrayOfCarFaultCodes.add("N.d.");
         }
     }
@@ -134,20 +131,38 @@ public class CarFragment extends Fragment {
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), mArrayOfCarParameters);
+        mCarParametersAdapter = new CarParametersAdapter(getActivity(), mArrayOfCarParameters);
 
         // Attach the adapter to a ListView
         mListView = (ListView) getView().findViewById(R.id.lvParam);
-        mListView.setAdapter(carParametersAdapter);
+        mListView.setAdapter(mCarParametersAdapter);
 
         ((MainActivity)getActivity()).setCarParametersListener(new CarParameter.CarParametersListener() {
             @Override
             public void onCarParametersChanged(ArrayList<CarParameter> arrayOfCarParameters) {
-                CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), arrayOfCarParameters);
-                mListView.setAdapter(carParametersAdapter);
+                updatedData(arrayOfCarParameters);
                 mArrayOfCarParameters = arrayOfCarParameters;
             }
         });
+
+        ((MainActivity)getActivity()).setCarFaultCodesListener(new CarFaultCodes.CarFaultCodesListener() {
+            @Override
+            public void onCarFaultCodesChanged(String carFaultCodes) {
+                mArrayOfCarFaultCodes = new ArrayList<>(Arrays.asList(carFaultCodes.split("\n")));
+            }
+        });
+    }
+
+    private void updatedData(ArrayList<CarParameter> arrayOfCarParameters) {
+        mCarParametersAdapter.clear();
+
+        if (arrayOfCarParameters != null){
+            for (CarParameter carParameter : arrayOfCarParameters) {
+                mCarParametersAdapter.insert(carParameter, mCarParametersAdapter.getCount());
+            }
+        }
+
+        mCarParametersAdapter.notifyDataSetChanged();
     }
 
     @Override
