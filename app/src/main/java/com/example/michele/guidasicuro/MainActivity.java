@@ -44,11 +44,29 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.github.pires.obd.commands.SpeedCommand;
+import com.github.pires.obd.commands.control.TroubleCodesCommand;
+import com.github.pires.obd.commands.engine.AbsoluteLoadCommand;
+import com.github.pires.obd.commands.engine.LoadCommand;
+import com.github.pires.obd.commands.engine.MassAirFlowCommand;
+import com.github.pires.obd.commands.engine.OilTempCommand;
 import com.github.pires.obd.commands.engine.RPMCommand;
+import com.github.pires.obd.commands.engine.ThrottlePositionCommand;
+import com.github.pires.obd.commands.fuel.AirFuelRatioCommand;
+import com.github.pires.obd.commands.fuel.ConsumptionRateCommand;
+import com.github.pires.obd.commands.fuel.FuelLevelCommand;
+import com.github.pires.obd.commands.fuel.FuelTrimCommand;
+import com.github.pires.obd.commands.fuel.WidebandAirFuelRatioCommand;
+import com.github.pires.obd.commands.pressure.BarometricPressureCommand;
+import com.github.pires.obd.commands.pressure.FuelPressureCommand;
+import com.github.pires.obd.commands.pressure.FuelRailPressureCommand;
+import com.github.pires.obd.commands.pressure.IntakeManifoldPressureCommand;
 import com.github.pires.obd.commands.protocol.EchoOffCommand;
 import com.github.pires.obd.commands.protocol.LineFeedOffCommand;
 import com.github.pires.obd.commands.protocol.SelectProtocolCommand;
 import com.github.pires.obd.commands.protocol.TimeoutCommand;
+import com.github.pires.obd.commands.temperature.AirIntakeTemperatureCommand;
+import com.github.pires.obd.commands.temperature.AmbientAirTemperatureCommand;
+import com.github.pires.obd.commands.temperature.EngineCoolantTemperatureCommand;
 import com.github.pires.obd.enums.ObdProtocols;
 import com.google.android.gms.common.api.Status;
 
@@ -106,10 +124,10 @@ public class MainActivity extends AppCompatActivity {
     private Chronometer mChronometer;
     private CarParameter mCarParameter;
     private ArrayList<CarParameter> mCarParameterArrayList = new ArrayList<>();
-    private String[] mCarParametersList;
     private Lock mLock = new ReentrantLock();
     private boolean mIsTimeDangerousChecked = false;
     private boolean mIsReceiverUnregistered;
+    private CarFaultCodes mCarFaultCodes;
 
     private void saveDeviceAddress(Context context, BluetoothDevice bluetoothDevice) {
         try {
@@ -403,27 +421,6 @@ public class MainActivity extends AppCompatActivity {
                     checkLocationPermission();
                 }
 
-                // BroadcastReceiver
-                mMyReceiver = new MyReceiver();
-
-                // Runnable scheduled to remind the user to stop for a break
-                mBreakReminder = new Runnable() {
-                    public void run() {
-                        Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
-                        mHandler.postDelayed(this, mBreakReminderInterval);
-                    }
-                };
-
-                // Runnable scheduled to upload data to the server
-                mUploadToServer = new Runnable() {
-                    @Override
-                    public void run() {
-                        updatePath();
-                        createCarParameters();
-                        mHandler.postDelayed(mUploadToServer, 10000);
-                    }
-                };
-
                 mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
                 if (mBluetoothAdapter == null) {
                     Log.i(TAG, "The device doesn't support Bluetooth");
@@ -625,8 +622,25 @@ public class MainActivity extends AppCompatActivity {
                 jsonObject = new JSONObject();
                 jsonObject.put("user_id", mUsername);
                 jsonObject.put("path_date", mPathDate);
-                jsonObject.put("speed", mCarParametersList[0]);
-                jsonObject.put("RPM", mCarParametersList[1]);
+                jsonObject.put("speed", mCarParameterArrayList.get(0).getValue());
+                jsonObject.put("RPM", mCarParameterArrayList.get(1).getValue());
+                jsonObject.put("absoluteLoad", mCarParameterArrayList.get(2).getValue());
+                jsonObject.put("load", mCarParameterArrayList.get(3).getValue());
+                jsonObject.put("massAirFlow", mCarParameterArrayList.get(4).getValue());
+                jsonObject.put("oilTemperature", mCarParameterArrayList.get(5).getValue());
+                jsonObject.put("throttlePosition", mCarParameterArrayList.get(6).getValue());
+                jsonObject.put("airFuelRatio", mCarParameterArrayList.get(7).getValue());
+                jsonObject.put("consumptionRate", mCarParameterArrayList.get(8).getValue());
+                jsonObject.put("fuelLevel", mCarParameterArrayList.get(9).getValue());
+                jsonObject.put("fuelTrim", mCarParameterArrayList.get(10).getValue());
+                jsonObject.put("widebandAirFuelRatio", mCarParameterArrayList.get(11).getValue());
+                jsonObject.put("barometricPressure", mCarParameterArrayList.get(12).getValue());
+                jsonObject.put("fuelPressure", mCarParameterArrayList.get(13).getValue());
+                jsonObject.put("fuelRailPressure", mCarParameterArrayList.get(14).getValue());
+                jsonObject.put("intakeManifoldPressure", mCarParameterArrayList.get(15).getValue());
+                jsonObject.put("airIntakePressure", mCarParameterArrayList.get(16).getValue());
+                jsonObject.put("ambientAirTemperature", mCarParameterArrayList.get(17).getValue());
+                jsonObject.put("engineCoolantTemperature", mCarParameterArrayList.get(18).getValue());
                 mLock.unlock();
             } catch(JSONException e) {
                 e.printStackTrace();
@@ -740,15 +754,37 @@ public class MainActivity extends AppCompatActivity {
             actionBar.hide();
         }
 
+        // BroadcastReceiver
+        mMyReceiver = new MyReceiver();
+
         mUserScore = new UserScore();
         mRoadInfo = new RoadInfo();
         mCarParameter = new CarParameter();
+        mCarFaultCodes = new CarFaultCodes();
 
         mPreviousRoadID = null;
 
         mCoordinates = new ArrayList<Location>();
 
         mIsReceiverUnregistered = false;
+
+        // Runnable scheduled to remind the user to stop for a break
+        mBreakReminder = new Runnable() {
+            public void run() {
+                Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
+                mHandler.postDelayed(this, mBreakReminderInterval);
+            }
+        };
+
+        // Runnable scheduled to upload data to the server
+        mUploadToServer = new Runnable() {
+            @Override
+            public void run() {
+                updatePath();
+                createCarParameters();
+                mHandler.postDelayed(mUploadToServer, 10000);
+            }
+        };
 
         Intent intent = new Intent(this, LoginActivity.class);
         startActivityForResult(intent, REQUEST_USERNAME);
@@ -764,6 +800,10 @@ public class MainActivity extends AppCompatActivity {
 
     public void setCarParametersListener(CarParameter.CarParametersListener carParametersListener) {
         mCarParameter.setCarParametersListener(carParametersListener);
+    }
+
+    public void setCarFaultCodesListener(CarFaultCodes.CarFaultCodesListener carFaultCodesListener) {
+        mCarFaultCodes.setCarFaultCodesListener(carFaultCodesListener);
     }
 
     private class ConnectThread extends Thread {
@@ -867,30 +907,84 @@ public class MainActivity extends AppCompatActivity {
                 mHandler.postDelayed(mUploadToServer, 10000);
                 mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
 
-                mCarParametersList = new String[2];
-
                 // OBD2 initialization
                 new EchoOffCommand().run(mmInStream, mmOutStream);
                 new LineFeedOffCommand().run(mmInStream, mmOutStream);
                 new TimeoutCommand(200).run(mmInStream, mmOutStream);
                 new SelectProtocolCommand(ObdProtocols.AUTO).run(mmInStream, mmOutStream);
 
+                TroubleCodesCommand troubleCodesCommand = new TroubleCodesCommand();
+
                 SpeedCommand speedCommand = new SpeedCommand();
                 RPMCommand rpmCommand = new RPMCommand();
+                AbsoluteLoadCommand absoluteLoadCommand = new AbsoluteLoadCommand();
+                LoadCommand loadCommand = new LoadCommand();
+                MassAirFlowCommand massAirFlowCommand = new MassAirFlowCommand();
+                OilTempCommand oilTempCommand = new OilTempCommand();
+                ThrottlePositionCommand throttlePositionCommand = new ThrottlePositionCommand();
+                AirFuelRatioCommand airFuelRatioCommand = new AirFuelRatioCommand();
+                ConsumptionRateCommand consumptionRateCommand = new ConsumptionRateCommand();
+                FuelLevelCommand fuelLevelCommand = new FuelLevelCommand();
+                FuelTrimCommand fuelTrimCommand = new FuelTrimCommand();
+                WidebandAirFuelRatioCommand widebandAirFuelRatioCommand = new WidebandAirFuelRatioCommand();
+                BarometricPressureCommand barometricPressureCommand = new BarometricPressureCommand();
+                FuelPressureCommand fuelPressureCommand = new FuelPressureCommand();
+                FuelRailPressureCommand fuelRailPressureCommand = new FuelRailPressureCommand();
+                IntakeManifoldPressureCommand intakeManifoldPressureCommand = new IntakeManifoldPressureCommand();
+                AirIntakeTemperatureCommand airIntakeTemperatureCommand = new AirIntakeTemperatureCommand();
+                AmbientAirTemperatureCommand ambientAirTemperatureCommand = new AmbientAirTemperatureCommand();
+                EngineCoolantTemperatureCommand engineCoolantTemperatureCommand = new EngineCoolantTemperatureCommand();
+
                 int measuresNumber = 0;
                 int[] speedMeasures = new int[3];
                 ArrayList<CarParameter> carParameterArrayList = new ArrayList<>();
 
+                troubleCodesCommand.run(mmInStream, mmOutStream);
+                mCarFaultCodes.getCarFaultCodesListener().onCarFaultCodesChanged(troubleCodesCommand.getFormattedResult());
+
                 while(!Thread.currentThread().isInterrupted()) {
                     speedCommand.run(mmInStream, mmOutStream);
                     rpmCommand.run(mmInStream, mmOutStream);
-                    Log.i(TAG,"Speed: " + speedCommand.getFormattedResult());
-                    Log.i(TAG,"RPM: " + rpmCommand.getFormattedResult());
+                    absoluteLoadCommand.run(mmInStream, mmOutStream);
+                    loadCommand.run(mmInStream, mmOutStream);
+                    massAirFlowCommand.run(mmInStream, mmOutStream);
+                    oilTempCommand.run(mmInStream, mmOutStream);
+                    throttlePositionCommand.run(mmInStream, mmOutStream);
+                    airFuelRatioCommand.run(mmInStream, mmOutStream);
+                    consumptionRateCommand.run(mmInStream, mmOutStream);
+                    fuelLevelCommand.run(mmInStream, mmOutStream);
+                    fuelTrimCommand.run(mmInStream, mmOutStream);
+                    widebandAirFuelRatioCommand.run(mmInStream, mmOutStream);
+                    barometricPressureCommand.run(mmInStream, mmOutStream);
+                    fuelPressureCommand.run(mmInStream, mmOutStream);
+                    fuelRailPressureCommand.run(mmInStream, mmOutStream);
+                    intakeManifoldPressureCommand.run(mmInStream, mmOutStream);
+                    airIntakeTemperatureCommand.run(mmInStream, mmOutStream);
+                    ambientAirTemperatureCommand.run(mmInStream, mmOutStream);
+                    engineCoolantTemperatureCommand.run(mmInStream, mmOutStream);
 
-                    carParameterArrayList.add(new CarParameter("Speed", speedCommand.getFormattedResult(), 220));
-                    carParameterArrayList.add(new CarParameter("RPM", rpmCommand.getFormattedResult(), 10000));
+                    //TODO: Max values needs to be defined
+                    carParameterArrayList.add(new CarParameter("Speed", speedCommand.getCalculatedResult(), speedCommand.getResultUnit(), 220));
+                    carParameterArrayList.add(new CarParameter("RPM", rpmCommand.getCalculatedResult(), rpmCommand.getResultUnit(), 10000));
+                    carParameterArrayList.add(new CarParameter("Absolute Load", absoluteLoadCommand.getCalculatedResult(), absoluteLoadCommand.getResultUnit(), 100));
+                    carParameterArrayList.add(new CarParameter("Load", loadCommand.getCalculatedResult(), loadCommand.getResultUnit(), 100));
+                    carParameterArrayList.add(new CarParameter("Mass Air Flow", massAirFlowCommand.getCalculatedResult(), massAirFlowCommand.getResultUnit(), 200));
+                    carParameterArrayList.add(new CarParameter("Oil Temperature", oilTempCommand.getCalculatedResult(), oilTempCommand.getResultUnit(), 150));
+                    carParameterArrayList.add(new CarParameter("Throttle Position", throttlePositionCommand.getCalculatedResult(), throttlePositionCommand.getResultUnit(), 100));
+                    carParameterArrayList.add(new CarParameter("Air Fuel Ratio", airFuelRatioCommand.getCalculatedResult(), airFuelRatioCommand.getResultUnit(), 18));
+                    carParameterArrayList.add(new CarParameter("Consumption Rate", consumptionRateCommand.getCalculatedResult(), consumptionRateCommand.getResultUnit(), 10));
+                    carParameterArrayList.add(new CarParameter("Fuel Level", fuelLevelCommand.getCalculatedResult(), fuelLevelCommand.getResultUnit(), 100));
+                    carParameterArrayList.add(new CarParameter("Fuel Trim", fuelTrimCommand.getCalculatedResult(), fuelTrimCommand.getResultUnit(), 100));
+                    carParameterArrayList.add(new CarParameter("Wideband Air Fuel Ratio", widebandAirFuelRatioCommand.getCalculatedResult(), widebandAirFuelRatioCommand.getResultUnit(), 20));
+                    carParameterArrayList.add(new CarParameter("Barometric Pressure", barometricPressureCommand.getCalculatedResult(), barometricPressureCommand.getResultUnit(), 792));
+                    carParameterArrayList.add(new CarParameter("Fuel Pressure", fuelPressureCommand.getCalculatedResult(), fuelPressureCommand.getResultUnit(), 689));
+                    carParameterArrayList.add(new CarParameter("Fuel Rail Pressure", fuelRailPressureCommand.getCalculatedResult(), fuelRailPressureCommand.getResultUnit(), 206));
+                    carParameterArrayList.add(new CarParameter("Intake Manifold Pressure", intakeManifoldPressureCommand.getCalculatedResult(), intakeManifoldPressureCommand.getResultUnit(), 20));
+                    carParameterArrayList.add(new CarParameter("Air Intake Temperature", airIntakeTemperatureCommand.getCalculatedResult(), airIntakeTemperatureCommand.getResultUnit(), 150));
+                    carParameterArrayList.add(new CarParameter("Ambient Air Temperature", ambientAirTemperatureCommand.getCalculatedResult(), ambientAirTemperatureCommand.getResultUnit(), 50));
+                    carParameterArrayList.add(new CarParameter("Engine Coolant Temperature", engineCoolantTemperatureCommand.getCalculatedResult(), engineCoolantTemperatureCommand.getResultUnit(), 120));
 
-                    mCarParameter.onCarParametersChanged(carParameterArrayList);
+                    mCarParameter.getCarParametersListener().onCarParametersChanged(carParameterArrayList);
 
                     if(mLock.tryLock()) {
                         mCarParameterArrayList.clear();
