@@ -77,7 +77,12 @@ public class CarFragment extends Fragment {
             parameterName.setText(carParameter.getName());
             parameterValue.setText(carParameter.getValue());
             progressBar.setMax(carParameter.getMaxValue());
-            //progressBar.setProgress(Integer.valueOf(carParameter.getValue().replaceAll("\\D+","")));
+
+            try {
+                progressBar.setProgress(Integer.valueOf(carParameter.getValue().replaceAll("\\D+", "")));
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
             // Return the completed view to render on screen
             return convertView;
         }
