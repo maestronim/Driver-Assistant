@@ -12,6 +12,7 @@ public class CarParameter {
 
     private String name;
     private String value;
+    private String unit;
     private int maxValue;
     private CarParametersListener carParametersListener;
 
@@ -21,9 +22,10 @@ public class CarParameter {
         this.maxValue = 100;
     }
 
-    public CarParameter(String name, String value, int maxValue) {
+    public CarParameter(String name, String value, String unit,int maxValue) {
         this.name = name;
         this.value = value;
+        this.unit = unit;
         this.maxValue = maxValue;
     }
 
@@ -31,8 +33,8 @@ public class CarParameter {
         this.carParametersListener = carParametersListener;
     }
 
-    public void onCarParametersChanged(ArrayList<CarParameter> arrayOfCarParameters) {
-        carParametersListener.onCarParametersChanged(arrayOfCarParameters);
+    public CarParametersListener getCarParametersListener() {
+        return this.carParametersListener;
     }
 
     public void setName(String name) {
@@ -41,6 +43,10 @@ public class CarParameter {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    public void setUnit(String unit) {
+        this.unit = unit;
     }
 
     public void setMaxValue(int maxValue) {
@@ -53,6 +59,10 @@ public class CarParameter {
 
     public String getValue() {
         return this.value;
+    }
+
+    public String getUnit() {
+        return this.unit;
     }
 
     public int getMaxValue() {
