@@ -23,6 +23,11 @@ public class RoadInfo {
     }
 
     public RoadInfo() {
+        this.ID = null;
+        this.Name = null;
+        this.MaxSpeed = 0;
+        this.Highway = null;
+        this.type = null;
     }
 
     public void setRoadInfoListener(RoadInfoListener roadInfoListener) {
