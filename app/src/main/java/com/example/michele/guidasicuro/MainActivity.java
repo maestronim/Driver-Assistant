@@ -109,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
     private String[] mCarParametersList;
     private Lock mLock = new ReentrantLock();
     private boolean mIsTimeDangerousChecked = false;
+    private boolean mIsReceiverUnregistered;
 
     private void saveDeviceAddress(Context context, BluetoothDevice bluetoothDevice) {
         try {
@@ -405,6 +406,24 @@ public class MainActivity extends AppCompatActivity {
                 // BroadcastReceiver
                 mMyReceiver = new MyReceiver();
 
+                // Runnable scheduled to remind the user to stop for a break
+                mBreakReminder = new Runnable() {
+                    public void run() {
+                        Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
+                        mHandler.postDelayed(this, mBreakReminderInterval);
+                    }
+                };
+
+                // Runnable scheduled to upload data to the server
+                mUploadToServer = new Runnable() {
+                    @Override
+                    public void run() {
+                        updatePath();
+                        createCarParameters();
+                        mHandler.postDelayed(mUploadToServer, 10000);
+                    }
+                };
+
                 mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
                 if (mBluetoothAdapter == null) {
                     Log.i(TAG, "The device doesn't support Bluetooth");
@@ -476,25 +495,6 @@ public class MainActivity extends AppCompatActivity {
                         });
 
                 bottomNavigationView.setSelectedItemId(R.id.action_item1);
-
-                // Runnable scheduled to remind the user to stop for a break
-                mBreakReminder = new Runnable(){
-                    public void run() {
-                        Toast.makeText(getApplicationContext(), "You need to stop for a break!", Toast.LENGTH_LONG).show();
-                        mHandler.postDelayed(this, mBreakReminderInterval);
-                    }
-                };
-                mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
-
-                // Runnable scheduled to upload data to the server
-                mUploadToServer = new Runnable() {
-                    @Override
-                    public void run() {
-                        updatePath();
-                        createCarParameters();
-                        mHandler.postDelayed(mUploadToServer, 10000);
-                    }
-                };
             }
         } else  if(requestCode == REQUEST_ENABLE_BT) {
             if (resultCode == RESULT_OK) {
@@ -616,12 +616,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createCarParameters() {
-        if(mCarParametersList.length > 0) {
+        mLock.lock();
+        if(mCarParameterArrayList.size() > 0) {
             String url = "http://maestronim.altervista.org/Guida-Sicuro/api/car-parameters/create.php";
             JSONObject jsonObject = null;
 
             try {
-                mLock.lock();
                 jsonObject = new JSONObject();
                 jsonObject.put("user_id", mUsername);
                 jsonObject.put("path_date", mPathDate);
@@ -748,6 +748,8 @@ public class MainActivity extends AppCompatActivity {
 
         mCoordinates = new ArrayList<Location>();
 
+        mIsReceiverUnregistered = false;
+
         Intent intent = new Intent(this, LoginActivity.class);
         startActivityForResult(intent, REQUEST_USERNAME);
     }
@@ -863,6 +865,7 @@ public class MainActivity extends AppCompatActivity {
                 mChronometer.setBase(SystemClock.elapsedRealtime());
                 mChronometer.start();
                 mHandler.postDelayed(mUploadToServer, 10000);
+                mHandler.postDelayed(mBreakReminder, mBreakReminderInterval);
 
                 mCarParametersList = new String[2];
 
@@ -888,13 +891,16 @@ public class MainActivity extends AppCompatActivity {
                     carParameterArrayList.add(new CarParameter("RPM", rpmCommand.getFormattedResult(), 10000));
 
                     mCarParameter.onCarParametersChanged(carParameterArrayList);
-                    carParameterArrayList.clear();
 
                     if(mLock.tryLock()) {
-                        mCarParametersList[0] = speedCommand.getCalculatedResult();
-                        mCarParametersList[1] = rpmCommand.getCalculatedResult();
+                        mCarParameterArrayList.clear();
+                        for(int i=0;i<carParameterArrayList.size();i++) {
+                            mCarParameterArrayList.add(carParameterArrayList.get(i));
+                        }
+
                         mLock.unlock();
                     }
+                    carParameterArrayList.clear();
 
                     speedMeasures[measuresNumber] = speedCommand.getMetricSpeed();
                     measuresNumber ++;
@@ -904,8 +910,10 @@ public class MainActivity extends AppCompatActivity {
                             mIsTimeDangerousChecked = true;
                         }
                     }
-                    
-                    mUserScore.checkSpeedLimitExceeded(speedCommand.getMetricSpeed(), mRoadInfo.getMaxSpeed());
+
+                    if(mRoadInfo.getMaxSpeed() != 0) {
+                        mUserScore.checkSpeedLimitExceeded(speedCommand.getMetricSpeed(), mRoadInfo.getMaxSpeed());
+                    }
 
                     if(measuresNumber >= 3) {
                         mUserScore.checkHardBraking(speedMeasures);
@@ -939,6 +947,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         Log.i(TAG, "onStart");
         super.onStart();
+
+        if(mIsReceiverUnregistered) {
+            // Register BroadcastReceiver to receive the data from the service
+            LocalBroadcastManager.getInstance(getApplicationContext()).registerReceiver(
+                    mMyReceiver, new IntentFilter("GPSLocationUpdates"));
+        }
     }
 
     @Override
@@ -949,21 +963,8 @@ public class MainActivity extends AppCompatActivity {
 
         // Stop register the BroadcastReceiver
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mMyReceiver);
-        //Stop the service
-        Intent intent = new Intent(this, MyLocationService.class);
-        stopService(intent);
-    }
 
-    private boolean isUserScoreChanged() {
-        if(mUserScore != null && mOriginalUserScore != null) {
-            if ((mUserScore.getHardBrakingCount() - mOriginalUserScore.getHardBrakingCount()) > 0 ||
-                    (mUserScore.getSpeedLimitExceededCount() - mOriginalUserScore.getSpeedLimitExceededCount() > 0) ||
-                    (mUserScore.getDangerousTimeCount() - mOriginalUserScore.getDangerousTimeCount() > 0)) {
-                return true;
-            }
-        }
-
-        return false;
+        mIsReceiverUnregistered = true;
     }
 
     @Override
