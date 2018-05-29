@@ -518,7 +518,7 @@ public class MainActivity extends AppCompatActivity {
     private void createPath() {
         mPathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
-        String url = "http://maestronim.altervista.org/Guida-Sicuro/api/user-path/create.php";
+        String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-path/create.php";
         JSONObject jsonObject = null;
 
         try {
@@ -561,7 +561,7 @@ public class MainActivity extends AppCompatActivity {
             long elapsedMillis = SystemClock.elapsedRealtime() - mChronometer.getBase();
             String formattedTime = getDate(elapsedMillis, "hh:mm:ss");
 
-            String url = "http://maestronim.altervista.org/Guida-Sicuro/api/user-path/update.php";
+            String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-path/update.php";
             JSONObject jsonObject = null;
 
             try {
@@ -615,7 +615,7 @@ public class MainActivity extends AppCompatActivity {
     private void createCarParameters() {
         mLock.lock();
         if(mCarParameterArrayList.size() > 0) {
-            String url = "http://maestronim.altervista.org/Guida-Sicuro/api/car-parameters/create.php";
+            String url = "http://maestronim.altervista.org/Driver-Assistant/api/car-parameters/create.php";
             JSONObject jsonObject = null;
 
             try {

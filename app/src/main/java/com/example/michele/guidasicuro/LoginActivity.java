@@ -98,7 +98,7 @@ public class LoginActivity extends AppCompatActivity {
         final String username = mUsernameText.getText().toString();
         String password = mPasswordText.getText().toString();
 
-        String url = "http://maestronim.altervista.org/Guida-Sicuro/api/user-info/check_credentials.php";
+        String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-info/login.php";
         Map<String, String> parameters = new HashMap();
         parameters.put("username", username);
         parameters.put("password", password);

@@ -236,6 +236,8 @@ public class WeatherFragment extends Fragment{
                 @Override
                 public void onErrorResponse(VolleyError error) {
                     error.printStackTrace();
+                    mProgressDialog.dismiss();
+                    Toast.makeText(getActivity(), "Error in retrieving the weather info", Toast.LENGTH_LONG).show();
                 }
             });
 

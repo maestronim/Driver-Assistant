@@ -7,6 +7,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="N.d."
+        android:textColor="@android:color/black"
         android:textSize="24sp"/>
 
     <TextView
@@ -15,6 +16,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/parameterName"
         android:layout_alignParentRight="true"
+        android:layout_marginTop="8dp"
         android:text="n.d."
         android:textSize="20sp"/>
 
@@ -22,8 +24,10 @@
         android:id="@+id/determinateBar"
         android:layout_below="@id/parameterValue"
         style="@android:style/Widget.Holo.Light.ProgressBar.Horizontal"
+        android:progressDrawable="@drawable/gradient_progress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:progress="15"
+        android:layout_marginTop="8dp"
+        android:progress="75"
         android:max="100"/>
 </RelativeLayout>
