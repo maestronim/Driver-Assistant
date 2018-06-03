@@ -94,7 +94,7 @@ public class SignupActivity extends AppCompatActivity {
         String email = mEmailText.getText().toString();
         String password = mPasswordText.getText().toString();
 
-        String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-info/create.php";
+        String url = "https://maestronim.altervista.org/Driver-Assistant/api/user-info/create.php";
         Map<String, String> parameters = new HashMap();
         parameters.put("username", username);
         parameters.put("email", email);
@@ -144,7 +144,7 @@ public class SignupActivity extends AppCompatActivity {
     }
 
     public void onSignupFailed() {
-        Toast.makeText(getBaseContext(), "Login failed", Toast.LENGTH_LONG).show();
+        Toast.makeText(getBaseContext(), "Signup failed", Toast.LENGTH_LONG).show();
 
         mSignupButton.setEnabled(true);
     }

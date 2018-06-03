@@ -2,6 +2,8 @@ package com.example.michele.guidasicuro;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -98,7 +100,7 @@ public class LoginActivity extends AppCompatActivity {
         final String username = mUsernameText.getText().toString();
         String password = mPasswordText.getText().toString();
 
-        String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-info/login.php";
+        String url = "https://maestronim.altervista.org/Driver-Assistant/api/user-info/login.php";
         Map<String, String> parameters = new HashMap();
         parameters.put("username", username);
         parameters.put("password", password);
@@ -112,7 +114,7 @@ public class LoginActivity extends AppCompatActivity {
                         progressDialog.dismiss();
                         try {
                             if (response.getString("valid").equals("yes")) {
-                                onLoginSuccess(username);
+                                onLoginSuccess(username, response.getString("jwt"));
                             } else {
                                 onLoginFailed();
                             }
@@ -156,7 +158,8 @@ public class LoginActivity extends AppCompatActivity {
         moveTaskToBack(true);
     }
 
-    public void onLoginSuccess(String username) {
+    public void onLoginSuccess(String username, String jwt) {
+        saveJsonWebToken(jwt);
         mLoginButton.setEnabled(true);
         Intent returnIntent = new Intent();
         returnIntent.putExtra("username", username);
@@ -168,6 +171,16 @@ public class LoginActivity extends AppCompatActivity {
         Toast.makeText(getBaseContext(), "Login failed", Toast.LENGTH_LONG).show();
 
         mLoginButton.setEnabled(true);
+    }
+
+    private void saveJsonWebToken(String jwt) {
+        Context context = getApplicationContext();
+        SharedPreferences sharedPref = context.getSharedPreferences(
+                getString(R.string.preference_file_key), Context.MODE_PRIVATE);
+
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putString(getString(R.string.saved_jwt_key), jwt);
+        editor.commit();
     }
 
     public boolean validate() {

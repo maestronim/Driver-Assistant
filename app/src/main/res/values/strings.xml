@@ -3,4 +3,6 @@
     <string name="item_1">Map</string>
     <string name="item_2">Weather</string>
     <string name="item_3">Car Status</string>
+    <string name="preference_file_key">com.example.michele.guidasicuro.PREFERENCE_FILE_KEY</string>
+    <string name="saved_jwt_key">jwt</string>
 </resources>

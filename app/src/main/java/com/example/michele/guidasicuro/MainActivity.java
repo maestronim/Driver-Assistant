@@ -12,6 +12,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
@@ -39,6 +40,7 @@ import android.widget.Chronometer;
 import android.widget.Toast;
 
 
+import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
@@ -113,7 +115,6 @@ public class MainActivity extends AppCompatActivity {
     private String mUsername;
     private BluetoothAdapter mBluetoothAdapter;
     private static final int REQUEST_ENABLE_BT = 10;
-    private String mDeviceAddress;
     private Location mLocation;
     private RoadInfo mRoadInfo;
     private String mPreviousRoadID;
@@ -239,7 +240,7 @@ public class MainActivity extends AppCompatActivity {
 
                                     Log.i(TAG, "not same road");
 
-                                    String url = "http://overpass-api.de/api/interpreter?data=[out:json];" + mRoadInfo.getType() + "(" + mRoadInfo.getID() + ");out;";
+                                    String url = "https://overpass-api.de/api/interpreter?data=[out:json];" + mRoadInfo.getType() + "(" + mRoadInfo.getID() + ");out;";
                                     JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
                                             new Response.Listener<JSONObject>() {
                                                 @Override
@@ -293,7 +294,7 @@ public class MainActivity extends AppCompatActivity {
                                                         // TODO: Distance needs to be defined
                                                         boundingBox.calculate(mLocation, 500);
 
-                                                        String url = "http://overpass.osm.rambler.ru/cgi/interpreter?data=[out:json];way[highway=residential](" +
+                                                        String url = "https://overpass-api.de/api/interpreter?data=[out:json];way[highway=residential](" +
                                                                 boundingBox.getSouthernLimit() + "," +
                                                                 boundingBox.getWesternLimit() + "," +
                                                                 boundingBox.getNorthernLimit() + "," +
@@ -515,10 +516,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private String getJsonWebToken() {
+        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+        String jwt = sharedPref.getString(getString(R.string.saved_jwt_key), null);
+
+        return jwt;
+    }
+
     private void createPath() {
         mPathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
-        String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-path/create.php";
+        String url = "https://maestronim.altervista.org/Driver-Assistant/api/user-path/create.php";
         JSONObject jsonObject = null;
 
         try {
@@ -551,7 +559,14 @@ public class MainActivity extends AppCompatActivity {
                         error.printStackTrace();
                         Toast.makeText(getApplicationContext(), "An error occurred in creating the path", Toast.LENGTH_LONG).show();
                     }
-                });
+                }) {
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> headers = new HashMap<String, String>();
+                headers.put("Authentication", "Bearer " + getJsonWebToken());
+                return headers;
+            }
+        };
 
         MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
     }
@@ -561,7 +576,7 @@ public class MainActivity extends AppCompatActivity {
             long elapsedMillis = SystemClock.elapsedRealtime() - mChronometer.getBase();
             String formattedTime = getDate(elapsedMillis, "hh:mm:ss");
 
-            String url = "http://maestronim.altervista.org/Driver-Assistant/api/user-path/update.php";
+            String url = "https://maestronim.altervista.org/Driver-Assistant/api/user-path/update.php";
             JSONObject jsonObject = null;
 
             try {
@@ -604,7 +619,14 @@ public class MainActivity extends AppCompatActivity {
                             error.printStackTrace();
                             Toast.makeText(getApplicationContext(), "An error occurred in updating the path", Toast.LENGTH_LONG).show();
                         }
-                    });
+                    }) {
+                @Override
+                public Map<String, String> getHeaders() throws AuthFailureError {
+                    HashMap<String, String> headers = new HashMap<String, String>();
+                    headers.put("Authentication", "Bearer " + getJsonWebToken());
+                    return headers;
+                }
+            };
 
             MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
 
@@ -615,7 +637,7 @@ public class MainActivity extends AppCompatActivity {
     private void createCarParameters() {
         mLock.lock();
         if(mCarParameterArrayList.size() > 0) {
-            String url = "http://maestronim.altervista.org/Driver-Assistant/api/car-parameters/create.php";
+            String url = "https://maestronim.altervista.org/Driver-Assistant/api/car-parameters/create.php";
             JSONObject jsonObject = null;
 
             try {
@@ -666,7 +688,14 @@ public class MainActivity extends AppCompatActivity {
                             error.printStackTrace();
                             Toast.makeText(getApplicationContext(), "An error occurred in uploading the car's parameters to the server", Toast.LENGTH_LONG).show();
                         }
-                    });
+                    }) {
+                @Override
+                public Map<String, String> getHeaders() throws AuthFailureError {
+                    HashMap<String, String> headers = new HashMap<String, String>();
+                    headers.put("Authentication", "Bearer " + getJsonWebToken());
+                    return headers;
+                }
+            };
 
             MySingleton.getInstance(getApplicationContext()).addToRequestQueue(jsonObjectRequest);
         }
