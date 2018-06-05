@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:id="@+id/car_data"
-        android:title="Car data">
+        android:id="@+id/car_parameters"
+        android:title="Car Parameters">
     </item>
     <item
-        android:id="@+id/fault_codes"
-        android:title="Fault codes">
+        android:id="@+id/car_fault_codes"
+        android:title="Car Fault codes">
     </item>
 </menu>

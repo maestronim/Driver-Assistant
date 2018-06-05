@@ -32,6 +32,8 @@ import com.github.pires.obd.commands.protocol.SelectProtocolCommand;
 import com.github.pires.obd.commands.protocol.TimeoutCommand;
 import com.github.pires.obd.enums.ObdProtocols;
 
+import org.w3c.dom.Text;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -57,6 +59,7 @@ public class CarFragment extends Fragment {
     private ArrayList<String> mArrayOfCarFaultCodes;
     private ListView mListView;
     private CarParametersAdapter mCarParametersAdapter;
+    private TextView mTitle;
 
     public class CarParametersAdapter extends ArrayAdapter<CarParameter> {
         public CarParametersAdapter(Context context, ArrayList<CarParameter> users) {
@@ -101,6 +104,10 @@ public class CarFragment extends Fragment {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
 
+        // Set title bar
+        ((MainActivity) getActivity())
+                .setActionBarTitle("Car Parameters");
+
         setHasOptionsMenu(true);
 
         // Construct the data source
@@ -108,7 +115,7 @@ public class CarFragment extends Fragment {
         mArrayOfCarFaultCodes = new ArrayList<String>();
 
         for(int i=0;i<18;i++) {
-            mArrayOfCarParameters.add(new CarParameter("n.d.","n.d.", "n.d.", 100));
+            mArrayOfCarParameters.add(new CarParameter());
             mArrayOfCarFaultCodes.add("N.d.");
         }
     }
@@ -192,11 +199,17 @@ public class CarFragment extends Fragment {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
-            case R.id.car_data:
+            case R.id.car_parameters:
+                // Set title bar
+                ((MainActivity) getActivity())
+                        .setActionBarTitle("Car Parameters");
                 CarParametersAdapter carParametersAdapter = new CarParametersAdapter(getActivity(), mArrayOfCarParameters);
                 mListView.setAdapter(carParametersAdapter);
                 break;
-            case R.id.fault_codes:
+            case R.id.car_fault_codes:
+                // Set title bar
+                ((MainActivity) getActivity())
+                        .setActionBarTitle("Car Fault Codes");
                 ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(getActivity(),
                         android.R.layout.simple_list_item_1, mArrayOfCarFaultCodes);
                 mListView.setAdapter(arrayAdapter);
