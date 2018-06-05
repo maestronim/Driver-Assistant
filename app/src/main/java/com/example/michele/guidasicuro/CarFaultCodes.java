@@ -9,6 +9,8 @@ public class CarFaultCodes {
         public void onCarFaultCodesChanged(String carFaultCodes);
     }
 
+    public CarFaultCodes() {}
+
     private CarFaultCodesListener carFaultCodesListener;
 
     public void setCarFaultCodesListener(CarFaultCodesListener carFaultCodesListener) {

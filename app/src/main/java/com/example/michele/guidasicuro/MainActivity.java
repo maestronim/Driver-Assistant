@@ -121,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean mShowActionBar;
     private List<Location> mCoordinates;
     private Runnable mUploadToServer;
-    private String mPathDate;
+    private String mPathID;
     private Chronometer mChronometer;
     private CarParameter mCarParameter;
     private ArrayList<CarParameter> mCarParameterArrayList = new ArrayList<>();
@@ -524,7 +524,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createPath() {
-        mPathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
+        String pathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
         String url = "https://maestronim.altervista.org/Driver-Assistant/api/user-path/create.php";
         JSONObject jsonObject = null;
@@ -532,7 +532,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             jsonObject = new JSONObject();
             jsonObject.put("user_id", mUsername);
-            jsonObject.put("path_date", mPathDate);
+            jsonObject.put("path_date", pathDate);
         } catch(JSONException e) {
             e.printStackTrace();
         } catch(Exception e) {
@@ -547,6 +547,7 @@ public class MainActivity extends AppCompatActivity {
                             if(response.getString("success").equals("no")) {
                                 Toast.makeText(getApplicationContext(), "An error occurred in creating the path", Toast.LENGTH_LONG).show();
                             } else {
+                                mPathID = response.getString("path_id");
                                 Toast.makeText(getApplicationContext(), response.getString("message"), Toast.LENGTH_LONG).show();
                             }
                         } catch(JSONException e) {
@@ -582,7 +583,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 jsonObject = new JSONObject();
                 jsonObject.put("user_id", mUsername);
-                jsonObject.put("path_date", mPathDate);
+                jsonObject.put("path_id", mPathID);
                 jsonObject.put("dangerous_time", mUserScore.getDangerousTimeCount());
                 jsonObject.put("speed_limit_exceeded", mUserScore.getSpeedLimitExceededCount());
                 jsonObject.put("hard_braking", mUserScore.getHardBrakingCount());
@@ -643,11 +644,11 @@ public class MainActivity extends AppCompatActivity {
             try {
                 jsonObject = new JSONObject();
                 jsonObject.put("user_id", mUsername);
-                jsonObject.put("path_date", mPathDate);
+                jsonObject.put("path_id", mPathID);
                 jsonObject.put("speed", mCarParameterArrayList.get(0).getValue());
                 jsonObject.put("RPM", mCarParameterArrayList.get(1).getValue());
-                jsonObject.put("absoluteLoad", mCarParameterArrayList.get(2).getValue());
-                jsonObject.put("load", mCarParameterArrayList.get(3).getValue());
+                jsonObject.put("absoluteEngineLoad", mCarParameterArrayList.get(2).getValue());
+                jsonObject.put("engineLoad", mCarParameterArrayList.get(3).getValue());
                 jsonObject.put("massAirFlow", mCarParameterArrayList.get(4).getValue());
                 jsonObject.put("oilTemperature", mCarParameterArrayList.get(5).getValue());
                 jsonObject.put("throttlePosition", mCarParameterArrayList.get(6).getValue());
@@ -835,6 +836,10 @@ public class MainActivity extends AppCompatActivity {
         mCarFaultCodes.setCarFaultCodesListener(carFaultCodesListener);
     }
 
+    public void setActionBarTitle(String title) {
+        getSupportActionBar().setTitle(title);
+    }
+
     private class ConnectThread extends Thread {
         private final BluetoothSocket mmSocket;
         private final BluetoothDevice mmDevice;
@@ -943,7 +948,7 @@ public class MainActivity extends AppCompatActivity {
                 new SelectProtocolCommand(ObdProtocols.AUTO).run(mmInStream, mmOutStream);
 
                 TroubleCodesCommand troubleCodesCommand = new TroubleCodesCommand();
-
+                
                 SpeedCommand speedCommand = new SpeedCommand();
                 RPMCommand rpmCommand = new RPMCommand();
                 AbsoluteLoadCommand absoluteLoadCommand = new AbsoluteLoadCommand();
@@ -967,51 +972,148 @@ public class MainActivity extends AppCompatActivity {
                 int measuresNumber = 0;
                 int[] speedMeasures = new int[3];
                 ArrayList<CarParameter> carParameterArrayList = new ArrayList<>();
-
-                troubleCodesCommand.run(mmInStream, mmOutStream);
-                mCarFaultCodes.getCarFaultCodesListener().onCarFaultCodesChanged(troubleCodesCommand.getFormattedResult());
+                
+                try {
+                    troubleCodesCommand.run(mmInStream, mmOutStream);
+                    mCarFaultCodes.getCarFaultCodesListener().onCarFaultCodesChanged(troubleCodesCommand.getFormattedResult());
+                } catch(Exception e) {
+                    e.printStackTrace();
+                }
 
                 while(!Thread.currentThread().isInterrupted()) {
-                    speedCommand.run(mmInStream, mmOutStream);
-                    rpmCommand.run(mmInStream, mmOutStream);
-                    absoluteLoadCommand.run(mmInStream, mmOutStream);
-                    loadCommand.run(mmInStream, mmOutStream);
-                    massAirFlowCommand.run(mmInStream, mmOutStream);
-                    oilTempCommand.run(mmInStream, mmOutStream);
-                    throttlePositionCommand.run(mmInStream, mmOutStream);
-                    airFuelRatioCommand.run(mmInStream, mmOutStream);
-                    consumptionRateCommand.run(mmInStream, mmOutStream);
-                    fuelLevelCommand.run(mmInStream, mmOutStream);
-                    fuelTrimCommand.run(mmInStream, mmOutStream);
-                    widebandAirFuelRatioCommand.run(mmInStream, mmOutStream);
-                    barometricPressureCommand.run(mmInStream, mmOutStream);
-                    fuelPressureCommand.run(mmInStream, mmOutStream);
-                    fuelRailPressureCommand.run(mmInStream, mmOutStream);
-                    intakeManifoldPressureCommand.run(mmInStream, mmOutStream);
-                    airIntakeTemperatureCommand.run(mmInStream, mmOutStream);
-                    ambientAirTemperatureCommand.run(mmInStream, mmOutStream);
-                    engineCoolantTemperatureCommand.run(mmInStream, mmOutStream);
-
-                    //TODO: Max values needs to be defined
-                    carParameterArrayList.add(new CarParameter("Speed", speedCommand.getCalculatedResult(), speedCommand.getResultUnit(), 220));
-                    carParameterArrayList.add(new CarParameter("RPM", rpmCommand.getCalculatedResult(), rpmCommand.getResultUnit(), 10000));
-                    carParameterArrayList.add(new CarParameter("Absolute Load", absoluteLoadCommand.getCalculatedResult(), absoluteLoadCommand.getResultUnit(), 100));
-                    carParameterArrayList.add(new CarParameter("Load", loadCommand.getCalculatedResult(), loadCommand.getResultUnit(), 100));
-                    carParameterArrayList.add(new CarParameter("Mass Air Flow", massAirFlowCommand.getCalculatedResult(), massAirFlowCommand.getResultUnit(), 200));
-                    carParameterArrayList.add(new CarParameter("Oil Temperature", oilTempCommand.getCalculatedResult(), oilTempCommand.getResultUnit(), 150));
-                    carParameterArrayList.add(new CarParameter("Throttle Position", throttlePositionCommand.getCalculatedResult(), throttlePositionCommand.getResultUnit(), 100));
-                    carParameterArrayList.add(new CarParameter("Air Fuel Ratio", airFuelRatioCommand.getCalculatedResult(), airFuelRatioCommand.getResultUnit(), 18));
-                    carParameterArrayList.add(new CarParameter("Consumption Rate", consumptionRateCommand.getCalculatedResult(), consumptionRateCommand.getResultUnit(), 10));
-                    carParameterArrayList.add(new CarParameter("Fuel Level", fuelLevelCommand.getCalculatedResult(), fuelLevelCommand.getResultUnit(), 100));
-                    carParameterArrayList.add(new CarParameter("Fuel Trim", fuelTrimCommand.getCalculatedResult(), fuelTrimCommand.getResultUnit(), 100));
-                    carParameterArrayList.add(new CarParameter("Wideband Air Fuel Ratio", widebandAirFuelRatioCommand.getCalculatedResult(), widebandAirFuelRatioCommand.getResultUnit(), 20));
-                    carParameterArrayList.add(new CarParameter("Barometric Pressure", barometricPressureCommand.getCalculatedResult(), barometricPressureCommand.getResultUnit(), 792));
-                    carParameterArrayList.add(new CarParameter("Fuel Pressure", fuelPressureCommand.getCalculatedResult(), fuelPressureCommand.getResultUnit(), 689));
-                    carParameterArrayList.add(new CarParameter("Fuel Rail Pressure", fuelRailPressureCommand.getCalculatedResult(), fuelRailPressureCommand.getResultUnit(), 206));
-                    carParameterArrayList.add(new CarParameter("Intake Manifold Pressure", intakeManifoldPressureCommand.getCalculatedResult(), intakeManifoldPressureCommand.getResultUnit(), 20));
-                    carParameterArrayList.add(new CarParameter("Air Intake Temperature", airIntakeTemperatureCommand.getCalculatedResult(), airIntakeTemperatureCommand.getResultUnit(), 150));
-                    carParameterArrayList.add(new CarParameter("Ambient Air Temperature", ambientAirTemperatureCommand.getCalculatedResult(), ambientAirTemperatureCommand.getResultUnit(), 50));
-                    carParameterArrayList.add(new CarParameter("Engine Coolant Temperature", engineCoolantTemperatureCommand.getCalculatedResult(), engineCoolantTemperatureCommand.getResultUnit(), 120));
+                    try {
+                        speedCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Speed", speedCommand.getCalculatedResult(), speedCommand.getResultUnit(), 220));
+                    } catch(IOException e) {
+                        carParameterArrayList.add(new CarParameter("Speed", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        rpmCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("RPM", rpmCommand.getCalculatedResult(), rpmCommand.getResultUnit(), 10000));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("RPM", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        absoluteLoadCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Absolute Load", absoluteLoadCommand.getCalculatedResult(), absoluteLoadCommand.getResultUnit(), 100));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Absolute Load", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        loadCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Load", loadCommand.getCalculatedResult(), loadCommand.getResultUnit(), 100));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Load", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        massAirFlowCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Mass Air Flow", massAirFlowCommand.getCalculatedResult(), massAirFlowCommand.getResultUnit(), 200));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Mass Air Flow", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        oilTempCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Oil Temperature", oilTempCommand.getCalculatedResult(), oilTempCommand.getResultUnit(), 150));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Oil Temperature", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        carParameterArrayList.add(new CarParameter("Throttle Position", throttlePositionCommand.getCalculatedResult(), throttlePositionCommand.getResultUnit(), 100));
+                        throttlePositionCommand.run(mmInStream, mmOutStream);
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Throttle Position", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        airFuelRatioCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Air Fuel Ratio", airFuelRatioCommand.getCalculatedResult(), airFuelRatioCommand.getResultUnit(), 18));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Air Fuel Ratio", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        consumptionRateCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Consumption Rate", consumptionRateCommand.getCalculatedResult(), consumptionRateCommand.getResultUnit(), 10));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Consumption Rate", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        fuelLevelCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Fuel Level", fuelLevelCommand.getCalculatedResult(), fuelLevelCommand.getResultUnit(), 100));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Fuel Level", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        fuelTrimCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Fuel Trim", fuelTrimCommand.getCalculatedResult(), fuelTrimCommand.getResultUnit(), 100));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Fuel Trim", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        widebandAirFuelRatioCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Wideband Air Fuel Ratio", widebandAirFuelRatioCommand.getCalculatedResult(), widebandAirFuelRatioCommand.getResultUnit(), 20));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Wideband Air Fuel Ratio", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        barometricPressureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Barometric Pressure", barometricPressureCommand.getCalculatedResult(), barometricPressureCommand.getResultUnit(), 792));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Barometric Pressure", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        fuelPressureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Fuel Pressure", fuelPressureCommand.getCalculatedResult(), fuelPressureCommand.getResultUnit(), 689));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Fuel Pressure", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        fuelRailPressureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Fuel Rail Pressure", fuelRailPressureCommand.getCalculatedResult(), fuelRailPressureCommand.getResultUnit(), 206));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Fuel Rail Pressure", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        intakeManifoldPressureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Intake Manifold Pressure", intakeManifoldPressureCommand.getCalculatedResult(), intakeManifoldPressureCommand.getResultUnit(), 20));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Intake Manifold Pressure", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        airIntakeTemperatureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Air Intake Temperature", airIntakeTemperatureCommand.getCalculatedResult(), airIntakeTemperatureCommand.getResultUnit(), 150));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Air Intake Temperature", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        ambientAirTemperatureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Ambient Air Temperature", ambientAirTemperatureCommand.getCalculatedResult(), ambientAirTemperatureCommand.getResultUnit(), 50));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Ambient Air Temperature", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
+                    try {
+                        engineCoolantTemperatureCommand.run(mmInStream, mmOutStream);
+                        carParameterArrayList.add(new CarParameter("Engine Coolant Temperature", engineCoolantTemperatureCommand.getCalculatedResult(), engineCoolantTemperatureCommand.getResultUnit(), 120));
+                    } catch (IOException e) {
+                        carParameterArrayList.add(new CarParameter("Engine Coolant Temperature", "-1", speedCommand.getResultUnit(), 220));
+                        e.printStackTrace();
+                    }
 
                     mCarParameter.getCarParametersListener().onCarParametersChanged(carParameterArrayList);
 

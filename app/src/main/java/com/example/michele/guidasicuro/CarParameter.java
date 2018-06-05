@@ -18,7 +18,8 @@ public class CarParameter {
 
     public CarParameter() {
         this.name = "N.d.";
-        this.value = "N.d.";
+        this.value = "0";
+        this.unit = "N.d.";
         this.maxValue = 100;
     }
 
