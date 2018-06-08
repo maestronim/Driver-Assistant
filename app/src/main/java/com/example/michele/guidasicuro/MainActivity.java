@@ -204,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
                 mLocation = (Location) b.getParcelable("Location");
 
                 if(mCoordinates.size() > 0) {
-                    if(!mCoordinates.get(mCoordinates.size() - 1).equals(mLocation)) {
+                    if(mCoordinates.get(mCoordinates.size() - 1).distanceTo(mLocation) > 10) {
                         mCoordinates.add(mLocation);
                     }
                 } else {
@@ -450,7 +450,7 @@ public class MainActivity extends AppCompatActivity {
                                 switch (item.getItemId()) {
                                     case R.id.action_item1:
                                         mShowActionBar = false;
-                                        selectedFragment = MapFragment.newInstance(mUserScore);
+                                        selectedFragment = MapFragment.newInstance(mUserScore, mRoadInfo);
                                         break;
                                     case R.id.action_item2:
                                         mShowActionBar = false;
@@ -524,7 +524,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createPath() {
-        String pathDate = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(new Date());
+        String pathDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
         String url = "https://maestronim.altervista.org/Driver-Assistant/api/user-path/create.php";
         JSONObject jsonObject = null;
@@ -972,15 +972,15 @@ public class MainActivity extends AppCompatActivity {
                 int measuresNumber = 0;
                 int[] speedMeasures = new int[3];
                 ArrayList<CarParameter> carParameterArrayList = new ArrayList<>();
-                
-                try {
-                    troubleCodesCommand.run(mmInStream, mmOutStream);
-                    mCarFaultCodes.getCarFaultCodesListener().onCarFaultCodesChanged(troubleCodesCommand.getFormattedResult());
-                } catch(Exception e) {
-                    e.printStackTrace();
-                }
 
                 while(!Thread.currentThread().isInterrupted()) {
+                    try {
+                        troubleCodesCommand.run(mmInStream, mmOutStream);
+                        mCarFaultCodes.getCarFaultCodesListener().onCarFaultCodesChanged(troubleCodesCommand.getFormattedResult());
+                    } catch(Exception e) {
+                        e.printStackTrace();
+                    }
+                    
                     try {
                         speedCommand.run(mmInStream, mmOutStream);
                         carParameterArrayList.add(new CarParameter("Speed", speedCommand.getCalculatedResult(), speedCommand.getResultUnit(), 220));
